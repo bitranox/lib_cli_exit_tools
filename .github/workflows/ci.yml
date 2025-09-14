@@ -27,15 +27,18 @@ jobs:
           choco install -y make
           echo "C:\\ProgramData\\chocolatey\\bin" >> $env:GITHUB_PATH
       - name: Install dev deps
+        shell: bash
         run: |
           python -m pip install --upgrade pip
           pip install -e .[dev]
       - name: Run full test suite (lint, types, tests, coverage, codecov)
-        shell: ${{ runner.os == 'Windows' && 'bash' || 'bash' }}
+        shell: bash
         run: make test
       - name: Build wheel/sdist
+        shell: bash
         run: python -m build
       - name: Verify wheel install in clean env
+        shell: bash
         run: |
           python -m venv .venv_wheel
           . .venv_wheel/bin/activate 2>/dev/null || .venv_wheel\Scripts\activate
