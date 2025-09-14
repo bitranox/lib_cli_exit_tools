@@ -99,40 +99,21 @@ pip install .
 
 ### Make Targets
 
-| Target            | Description |
-| ----------------- | ----------- |
-| `brew-audit`      | Audit Homebrew formula (may fail until sha256 placeholders are set). |
-| `brew-uninstall`  | Uninstall the local Homebrew package. |
-| `build-all`       | Build wheel/sdist and attempt conda/brew/nix builds (skip if tools missing). |
-| `cli`             | Run the installed console script’s `--help`. |
-| `clean`           | Remove caches, coverage, and build artifacts (includes `dist/` and `build/`). |
-| `dev`             | Editable install with dev extras. |
-| `help`            | List all targets with one‑line docs. |
-| `install`         | Editable install (`pip install -e .`). |
-| `menu`            | Alias for `help`. |
-| `nix-run`         | Run CLI from Nix build result (`./result/bin/...`). |
-| `pip-git-install` | Install from Git ref: `make pip-git-install GIT_REF=v0.1.0`. |
-| `pipx-install`    | pipx install the project. |
-| `pipx-uninstall`  | pipx uninstall the project. |
-| `pipx-upgrade`    | pipx upgrade the project. |
-| `run`             | Run module entry: `python -m lib_cli_exit_tools --help`. |
-| `sdist-install`   | Install from built sdist in `dist/`. |
-| `test`            | Lint (ruff), type‑check (pyright), pytest + coverage, upload to Codecov. |
-| `uv-dev`          | Editable dev install via `uv`. |
-| `uv-tool-install` | Install CLI as an `uv` tool. |
-| `uv-tool-run`     | One‑off run via `uvx`. |
-| `uv-tool-upgrade` | Upgrade the `uv` tool. |
-| `user-install`    | Per‑user install (`pip install --user .`). |
-| `venv`            | Create a local virtualenv at `.venv/`. |
-| `verify-install`  | Verify CLI is on PATH and callable. |
-| `which-cmd`       | Show which CLI shim resolves on PATH. |
-| `wheel-install`   | Install from built wheel in `dist/`. |
+| Target     | Description |
+| ---------- | ----------- |
+| `build`    | Build wheel/sdist and attempt Conda/Brew/Nix builds (auto‑installs missing tools). |
+| `clean`    | Remove caches, coverage, and build artifacts (includes `dist/` and `build/`). |
+| `dev`      | Editable install with dev extras. |
+| `help`     | List all targets with one‑line docs. |
+| `install`  | Editable install (`pip install -e .`). |
+| `run`      | Run module entry: `python -m lib_cli_exit_tools --help`. |
+| `test`     | Lint (ruff), format, type‑check (pyright), pytest + coverage, Codecov upload. |
 
 #### Target Details
 
-- `test`: single entry point for local CI — runs ruff lint + format check, pyright, pytest with coverage, and uploads coverage to Codecov if configured (reads `.env`).
+- `test`: single entry point for local CI — runs ruff lint + format check, pyright, pytest with coverage (enabled by default), and uploads coverage to Codecov if configured (reads `.env`).
 - Auto‑bootstrap: `make test` will try to install dev tools (`pip install -e .[dev]`) if `ruff`/`pyright`/`pytest` are missing. Set `SKIP_BOOTSTRAP=1` to skip this behavior.
-- `build-all`: convenient builder — creates Python wheel/sdist, then attempts Conda, Homebrew, and Nix builds if those tools are available.
+- `build`: convenient builder — creates Python wheel/sdist, then attempts Conda, Homebrew, and Nix builds. It auto‑installs missing tools (Miniforge, Homebrew, Nix) when needed.
 - `install`/`dev`/`user-install`: common install flows for editable or per‑user installs.
 - `pipx-*` and `uv-*`: isolated CLI installations for end users and fast developer tooling.
 - `which-cmd`/`verify-install`: quick diagnostics to ensure the command is on PATH.
@@ -190,7 +171,10 @@ If you installed with --user or in a venv, make sure the corresponding bin direc
 ## Development
 
 ```bash
-make test       # ruff + pyright + pytest + coverage upload (Codecov)
+make test                 # ruff + pyright + pytest + coverage (default ON)
+SKIP_BOOTSTRAP=1 make test  # skip auto-install of dev deps
+COVERAGE=off make test       # disable coverage locally
+COVERAGE=on make test        # force coverage and generate coverage.xml/codecov.xml
 ```
 
 ## Packaging Skeletons
@@ -220,7 +204,7 @@ Conda/Homebrew/Nix: use files in `packaging/` to submit to their ecosystems. CI 
 
 ### Local Codecov uploads
 
-- `make test` will generate `coverage.xml` and attempt to upload via the Codecov CLI or the bash uploader.
+- `make test` (with coverage enabled) generates `coverage.xml` and `codecov.xml`, then attempts to upload via the Codecov CLI or the bash uploader.
 - For private repos, set `CODECOV_TOKEN` (see `.env.example`) or export it in your shell.
 - For public repos, a token is typically not required.
 
