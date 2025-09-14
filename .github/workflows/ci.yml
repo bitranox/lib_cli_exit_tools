@@ -41,7 +41,7 @@ jobs:
         shell: bash
         run: |
           python -m venv .venv_wheel
-          . .venv_wheel/bin/activate 2>/dev/null || .venv_wheel\Scripts\activate
+          . .venv_wheel/bin/activate 2>/dev/null || . .venv_wheel/Scripts/activate 2>/dev/null
           pip install dist/*.whl
           lib_cli_exit_tools --version || python -m lib_cli_exit_tools --version
 
