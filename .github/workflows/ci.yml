@@ -96,7 +96,6 @@ jobs:
         with:
           auto-update-conda: true
           python-version: "3.12"
-          activate-environment: base
       - name: Build conda recipe (local source, no test)
         shell: bash -l {0}
         env:
