@@ -55,7 +55,7 @@ when writing or refracturing Python scripts, apply those Rules :
 | `dev`     | Editable install with dev extras. |
 | `help`    | Show this table. |
 | `install` | Editable install. |
-| `push`    | Commit changes, push to GitHub, and monitor Actions until green (retries). |
+| `push`    | Commit changes once and push to GitHub (no CI monitoring). |
 | `run`     | Run module entry (`python -m ... --help`). |
 | `test`    | Lint, format, type‑check, tests with coverage, Codecov upload. |
 

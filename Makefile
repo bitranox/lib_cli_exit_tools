@@ -91,44 +91,19 @@ clean: ## Remove caches, build artifacts, and coverage
 	  .cache \
 	  result
 
-push: ## Commit all changes, push, and monitor GitHub Actions until green
+push: ## Commit all changes once and push to GitHub (no CI monitoring)
 	@echo "[push] Running local checks (make test)"
 	$(MAKE) test
-	@echo "[push] Committing and pushing with CI watch (up to 3 attempts)"
+	@echo "[push] Committing and pushing (single attempt)"
 	@set -e; \
 	BRANCH=$$(git rev-parse --abbrev-ref HEAD); \
-	for i in 1 2 3; do \
-	  echo "[push] Attempt $$i on branch $$BRANCH"; \
-	  git add -A; \
-	  if git diff --cached --quiet; then \
-	    git commit --allow-empty -m "chore(ci): trigger pipeline (attempt $$i)"; \
-	  else \
-	    git commit -m "chore: update (attempt $$i)"; \
-	  fi; \
-	  git push -u origin $$BRANCH; \
-	  if command -v gh >/dev/null 2>&1; then \
-	    echo "[push] Waiting for latest workflow run on $$BRANCH"; \
-	    sleep 3; \
-	    RUN_ID=$$(gh run list --branch "$$BRANCH" --limit 1 --json databaseId --jq '.[0].databaseId' || true); \
-	    if [ -n "$$RUN_ID" ]; then \
-	      if gh run watch "$$RUN_ID" --exit-status; then \
-	        echo "[push] CI succeeded on attempt $$i"; \
-	        exit 0; \
-	      else \
-	        echo "[push] CI failed on attempt $$i; fetching logs"; \
-	        gh run view "$$RUN_ID" --log || true; \
-	      fi; \
-	    else \
-	      echo "[push] No workflow run detected; proceeding"; \
-	      exit 0; \
-	    fi; \
-	  else \
-	    echo "[push] gh CLI not found; pushed without CI monitoring"; \
-	    exit 0; \
-	  fi; \
-	done; \
-	echo "[push] CI failed after 3 attempts"; \
-	exit 1
+	git add -A; \
+	if git diff --cached --quiet; then \
+	  echo "[push] Nothing to commit; pushing branch $$BRANCH"; \
+	else \
+	  git commit -m "chore: update"; \
+	fi; \
+	git push -u origin $$BRANCH || { echo "[push] git push failed"; exit 1; }
 
 build: ## Build wheel/sdist and attempt conda, brew, and nix builds (auto-installs tools if missing)
 	@echo "[1/4] Building wheel/sdist via python -m build"

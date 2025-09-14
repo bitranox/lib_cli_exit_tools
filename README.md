@@ -106,7 +106,7 @@ pip install .
 | `dev`      | Editable install with dev extras. |
 | `help`     | List all targets with one‑line docs. |
 | `install`  | Editable install (`pip install -e .`). |
-| `push`     | Commit all changes, push to GitHub, and watch Actions until green (retries up to 3). |
+| `push`     | Commit all changes once and push to GitHub (no CI monitoring). |
 | `run`      | Run module entry: `python -m lib_cli_exit_tools --help`. |
 | `test`     | Lint (ruff), format, type‑check (pyright), pytest + coverage, Codecov upload. |
 
