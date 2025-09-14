@@ -15,8 +15,8 @@
           pname = "lib_cli_exit_tools";
           version = "0.1.0";
           pyproject = true;
-          # For local development, use the working tree:
-          src = ./.;
+          # Build from the repository root (two levels up from packaging/nix)
+          src = ../..;
           # For pinned releases, swap src for fetchFromGitHub with a rev/sha256.
           # src = pkgs.fetchFromGitHub {
           #   owner = "bitranox";
@@ -50,4 +50,3 @@
       }
     );
 }
-
