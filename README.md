@@ -7,7 +7,7 @@
 [![Jupyter](https://img.shields.io/badge/Jupyter-Ready-orange?logo=jupyter)](https://jupyter.org)
 [![PyPI](https://img.shields.io/pypi/v/lib_cli_exit_tools.svg)](https://pypi.org/project/lib_cli_exit_tools/)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/lib_cli_exit_tools.svg)](https://pypi.org/project/lib_cli_exit_tools/)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Code Style: Ruff](https://img.shields.io/badge/Code%20Style-Ruff-46A3FF?logo=ruff&labelColor=000)](https://docs.astral.sh/ruff/)
 [![codecov](https://codecov.io/gh/bitranox/lib_cli_exit_tools/branch/main/graph/badge.svg)](https://codecov.io/gh/bitranox/lib_cli_exit_tools)
 [![QLTY Maintainability](https://img.shields.io/badge/qlty.sh-maintainability-blue)](https://qlty.sh)
 [![QLTY Coverage](https://img.shields.io/badge/qlty.sh-coverage-blue)](https://qlty.sh)
@@ -106,6 +106,7 @@ pip install .
 | `dev`      | Editable install with dev extras. |
 | `help`     | List all targets with one‑line docs. |
 | `install`  | Editable install (`pip install -e .`). |
+| `push`     | Commit all changes, push to GitHub, and watch Actions until green (retries up to 3). |
 | `run`      | Run module entry: `python -m lib_cli_exit_tools --help`. |
 | `test`     | Lint (ruff), format, type‑check (pyright), pytest + coverage, Codecov upload. |
 

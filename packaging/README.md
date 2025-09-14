@@ -16,7 +16,7 @@ This directory contains starter files for common package managers. They are inte
 - `lib-cli-exit-tools.rb` is a template. Fill `sha256` for the source tarball and the vendored `click` resource.
 - Build locally:
   ```bash
-  make build-all   # attempts Homebrew build if brew is present
+  make build       # attempts Homebrew build; auto-installs if missing
   lib_cli_exit_tools --version
   ```
   Additional helpers:
@@ -31,6 +31,6 @@ This directory contains starter files for common package managers. They are inte
 - For reproducible releases, swap `src = ./.;` for a `fetchFromGitHub` stanza with `rev` and `sha256`.
 - Example:
   ```bash
-  make build-all   # attempts Nix build if nix is present
+  make build       # attempts Nix build; auto-installs if missing
   make nix-run
   ```

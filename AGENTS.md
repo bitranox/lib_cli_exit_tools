@@ -43,7 +43,7 @@ when writing or refracturing Python scripts, apply those Rules :
 - `make test` — run ruff (lint + format check), pyright, pytest with coverage (enabled by default), and upload to Codecov (if configured via `.env`).
   - Auto‑bootstrap: `make test` installs dev tools (`pip install -e .[dev]`) if linters/test deps are missing. Use `SKIP_BOOTSTRAP=1 make test` to disable.
   - Coverage control: `COVERAGE=on|auto|off` (default `on` locally). Uses a unique `COVERAGE_FILE` each run to avoid DB locks.
-- `make build-all` — build Python wheel/sdist and attempt Conda/Homebrew/Nix builds (skips automatically if tools are missing).
+- `make build` — build Python wheel/sdist and attempt Conda/Homebrew/Nix builds (auto‑installs missing tools when needed).
 - `make clean` — remove caches, coverage, and build artifacts (includes `dist/` and `build/`).
 
 ### Common Make Targets (Alphabetical)
@@ -55,6 +55,7 @@ when writing or refracturing Python scripts, apply those Rules :
 | `dev`     | Editable install with dev extras. |
 | `help`    | Show this table. |
 | `install` | Editable install. |
+| `push`    | Commit changes, push to GitHub, and monitor Actions until green (retries). |
 | `run`     | Run module entry (`python -m ... --help`). |
 | `test`    | Lint, format, type‑check, tests with coverage, Codecov upload. |
 
