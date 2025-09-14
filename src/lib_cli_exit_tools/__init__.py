@@ -1,4 +1,6 @@
-from .cli_exit_tools import (
+from __future__ import annotations
+
+from .lib_cli_exit_tools import (
     config,
     get_system_exit_code,
     print_exception_message,

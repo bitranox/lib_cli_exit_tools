@@ -39,19 +39,42 @@ when writing or refracturing Python scripts, apply those Rules :
 
 ## Build, Test, and Development Commands
 
-- `make help` — list all targets with one‑line docs (reads lines annotated with `##`).
-- `make menu` — open the interactive menu explicitly (same as running `make` with no args).
-- `make clean` — remove local artifacts
-
-- Tests
-- `make test`
+- `make help` — list all targets with one‑line docs.
+- `make test` — run ruff (lint + format check), pyright, pytest with coverage, and upload to Codecov (if configured via `.env`).
+- Auto‑bootstrap: `make test` installs dev tools (`pip install -e .[dev]`) if linters/test deps are missing. Use `SKIP_BOOTSTRAP=1 make test` to disable.
+- `make build-all` — build Python wheel/sdist and attempt Conda/Homebrew/Nix builds (skips automatically if tools are missing).
+- `make clean` — remove caches, coverage, and build artifacts (includes `dist/` and `build/`).
 
 ### Common Make Targets (Alphabetical)
 
-| Target                     | One‑line description                                                                   |
-| -------------------------- | -------------------------------------------------------------------------------------- |
-| `clean`                    | Remove local build/preview artifacts (`tmp/`, `web-local-preview/`, `website/build/`). |
-| `test`                     | Prettier (write), ESLint, then Vitest (coverage if configured) + docs URL guard.       |
+| Target            | One‑line description |
+| ----------------- | -------------------- |
+| `brew-audit`      | Audit Homebrew formula (may fail until sha256 is set). |
+| `brew-uninstall`  | Uninstall local Homebrew package. |
+| `build-all`       | Build wheel/sdist and attempt Conda/Brew/Nix builds. |
+| `cli`             | Run console script help. |
+| `clean`           | Remove caches, coverage, and build artifacts (includes `dist/` and `build/`). |
+| `dev`             | Editable install with dev extras. |
+| `help`            | Show this table. |
+| `install`         | Editable install. |
+| `menu`            | Alias for `help`. |
+| `nix-run`         | Run CLI from Nix build result. |
+| `pip-git-install` | Install from Git ref/tag. |
+| `pipx-install`    | pipx install. |
+| `pipx-uninstall`  | pipx uninstall. |
+| `pipx-upgrade`    | pipx upgrade. |
+| `run`             | Run module entry (`python -m ... --help`). |
+| `sdist-install`   | Install from built sdist. |
+| `test`            | Lint, type‑check, tests with coverage, upload to Codecov. |
+| `uv-dev`          | Dev install via `uv`. |
+| `uv-tool-install` | Install as `uv` tool. |
+| `uv-tool-run`     | One‑off run via `uvx`. |
+| `uv-tool-upgrade` | Upgrade `uv` tool. |
+| `user-install`    | Per‑user install. |
+| `venv`            | Create `.venv`. |
+| `verify-install`  | Verify CLI is on PATH. |
+| `which-cmd`       | Show which CLI shim resolves. |
+| `wheel-install`   | Install from built wheel. |
 
 ## Coding Style & Naming Conventions
 

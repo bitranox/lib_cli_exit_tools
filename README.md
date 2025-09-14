@@ -1,1 +1,229 @@
-# lib_cli_exit
+# lib_cli_exit_tools
+
+<!-- Badges -->
+[![CI](https://github.com/bitranox/lib_cli_exit_tools/actions/workflows/ci.yml/badge.svg)](https://github.com/bitranox/lib_cli_exit_tools/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/bitranox/lib_cli_exit_tools/actions/workflows/codeql.yml/badge.svg)](https://github.com/bitranox/lib_cli_exit_tools/actions/workflows/codeql.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Jupyter](https://img.shields.io/badge/Jupyter-Ready-orange?logo=jupyter)](https://jupyter.org)
+[![PyPI](https://img.shields.io/pypi/v/lib_cli_exit_tools.svg)](https://pypi.org/project/lib_cli_exit_tools/)
+[![PyPI - Downloads](https://img.shields.io/pypi/dm/lib_cli_exit_tools.svg)](https://pypi.org/project/lib_cli_exit_tools/)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![codecov](https://codecov.io/gh/bitranox/lib_cli_exit_tools/branch/main/graph/badge.svg)](https://codecov.io/gh/bitranox/lib_cli_exit_tools)
+[![QLTY Maintainability](https://img.shields.io/badge/qlty.sh-maintainability-blue)](https://qlty.sh)
+[![QLTY Coverage](https://img.shields.io/badge/qlty.sh-coverage-blue)](https://qlty.sh)
+[![Known Vulnerabilities](https://snyk.io/test/github/bitranox/lib_cli_exit_tools/badge.svg)](https://snyk.io/test/github/bitranox/lib_cli_exit_tools)
+
+Small helpers for robust CLI exit handling:
+- Portable signal handling (SIGINT, SIGTERM/SIGBREAK)
+- Consistent exception → exit code mapping
+- Concise error printing with optional traceback and subprocess stdout/stderr capture
+
+## Install
+
+Pick one of the options below. All methods register the `lib_cli_exit_tools` and `cli-exit-tools` commands on your PATH.
+
+### 1) Standard virtualenv (pip)
+
+```bash
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\\Scripts\\activate
+pip install -e .[dev]       # dev install
+# or for runtime only:
+pip install .
+```
+
+### 2) Per-user (no venv)
+
+```bash
+pip install --user .
+```
+
+Note: respects PEP 668; avoid on system Python if “externally managed”. Ensure `~/.local/bin` (POSIX) is on PATH.
+
+### 3) pipx (isolated, recommended for end users)
+
+```bash
+pipx install .
+pipx upgrade lib_cli_exit_tools
+# From Git tag/commit:
+pipx install "git+https://github.com/bitranox/lib_cli_exit_tools@v0.1.0"
+```
+
+### 4) uv (fast installer/runner)
+
+```bash
+uv pip install -e .[dev]
+uv tool install .
+uvx lib_cli_exit_tools --help
+```
+
+### 5) From artifacts
+
+```bash
+python -m build
+pip install dist/lib_cli_exit_tools-*.whl
+pip install dist/lib_cli_exit_tools-*.tar.gz   # sdist
+```
+
+### 6) Poetry / PDM (project-managed envs)
+
+```bash
+# Poetry
+poetry add lib_cli_exit_tools     # as dependency
+poetry install                    # for local dev
+
+# PDM
+pdm add lib_cli_exit_tools
+pdm install
+```
+
+### 7) From Git via pip (CI-friendly)
+
+```bash
+pip install "git+https://github.com/bitranox/lib_cli_exit_tools@v0.1.0#egg=lib_cli_exit_tools"
+```
+
+### 8) Conda/mamba (optional)
+
+```bash
+mamba create -n cli-exit python=3.12 pip
+mamba activate cli-exit
+pip install .
+```
+
+### 9) System package managers (optional distribution)
+
+- Homebrew formula (macOS): `brew install lib_cli_exit_tools` (if published)
+- Nix: flake/package for reproducible installs
+- Deb/RPM via `fpm` for OS-native packages
+
+### Make Targets
+
+| Target            | Description |
+| ----------------- | ----------- |
+| `brew-audit`      | Audit Homebrew formula (may fail until sha256 placeholders are set). |
+| `brew-uninstall`  | Uninstall the local Homebrew package. |
+| `build-all`       | Build wheel/sdist and attempt conda/brew/nix builds (skip if tools missing). |
+| `cli`             | Run the installed console script’s `--help`. |
+| `clean`           | Remove caches, coverage, and build artifacts (includes `dist/` and `build/`). |
+| `dev`             | Editable install with dev extras. |
+| `help`            | List all targets with one‑line docs. |
+| `install`         | Editable install (`pip install -e .`). |
+| `menu`            | Alias for `help`. |
+| `nix-run`         | Run CLI from Nix build result (`./result/bin/...`). |
+| `pip-git-install` | Install from Git ref: `make pip-git-install GIT_REF=v0.1.0`. |
+| `pipx-install`    | pipx install the project. |
+| `pipx-uninstall`  | pipx uninstall the project. |
+| `pipx-upgrade`    | pipx upgrade the project. |
+| `run`             | Run module entry: `python -m lib_cli_exit_tools --help`. |
+| `sdist-install`   | Install from built sdist in `dist/`. |
+| `test`            | Lint (ruff), type‑check (pyright), pytest + coverage, upload to Codecov. |
+| `uv-dev`          | Editable dev install via `uv`. |
+| `uv-tool-install` | Install CLI as an `uv` tool. |
+| `uv-tool-run`     | One‑off run via `uvx`. |
+| `uv-tool-upgrade` | Upgrade the `uv` tool. |
+| `user-install`    | Per‑user install (`pip install --user .`). |
+| `venv`            | Create a local virtualenv at `.venv/`. |
+| `verify-install`  | Verify CLI is on PATH and callable. |
+| `which-cmd`       | Show which CLI shim resolves on PATH. |
+| `wheel-install`   | Install from built wheel in `dist/`. |
+
+#### Target Details
+
+- `test`: single entry point for local CI — runs ruff lint + format check, pyright, pytest with coverage, and uploads coverage to Codecov if configured (reads `.env`).
+- Auto‑bootstrap: `make test` will try to install dev tools (`pip install -e .[dev]`) if `ruff`/`pyright`/`pytest` are missing. Set `SKIP_BOOTSTRAP=1` to skip this behavior.
+- `build-all`: convenient builder — creates Python wheel/sdist, then attempts Conda, Homebrew, and Nix builds if those tools are available.
+- `install`/`dev`/`user-install`: common install flows for editable or per‑user installs.
+- `pipx-*` and `uv-*`: isolated CLI installations for end users and fast developer tooling.
+- `which-cmd`/`verify-install`: quick diagnostics to ensure the command is on PATH.
+
+## Usage
+
+Console script:
+
+```bash
+# After install (pip/pipx/uv tool)
+lib_cli_exit_tools --help
+cli-exit-tools --help  # alias
+lib_cli_exit_tools info
+```
+
+Library:
+
+```python
+from lib_cli_exit_tools import get_system_exit_code, print_exception_message, config
+
+config.traceback = False  # show short messages
+try:
+    raise FileNotFoundError("missing.txt")
+except Exception as e:
+    code = get_system_exit_code(e)   # 2 on POSIX
+    print_exception_message()        # prints: FileNotFoundError: missing.txt
+    raise SystemExit(code)
+```
+
+Command names registered on install
+- lib_cli_exit_tools (default)
+- cli-exit-tools (alias)
+- python -m lib_cli_exit_tools (module entry)
+
+If you installed with --user or in a venv, make sure the corresponding bin directory is on PATH:
+- Linux/macOS venv: .venv/bin
+- Linux/macOS user: ~/.local/bin
+- Windows venv: .venv\Scripts
+- Windows user: %APPDATA%\Python\PythonXY\Scripts
+
+## Exit Codes
+
+- SIGINT → 130, SIGTERM → 143 (POSIX), SIGBREAK → 149 (Windows)
+- SystemExit(n) → n
+- Common exceptions map to POSIX/Windows codes (FileNotFoundError, PermissionError, ValueError, etc.)
+
+### Broken pipe behavior
+- Default: exit 141 quietly (128+SIGPIPE), no noisy error output.
+- Configure: `config.broken_pipe_exit_code = 0` to treat as benign truncation, or `32` (EPIPE).
+
+### Sysexits mode (optional)
+- Set `config.exit_code_style = "sysexits"` to map ValueError/TypeError → EX_USAGE(64),
+  FileNotFoundError → EX_NOINPUT(66), PermissionError → EX_NOPERM(77), generic OSError → EX_IOERR(74).
+
+## Development
+
+```bash
+make test       # ruff + pyright + pytest + coverage upload (Codecov)
+```
+
+## Packaging Skeletons
+
+Starter files for package managers live under `packaging/`:
+
+- Conda: `packaging/conda/recipe/meta.yaml` (update version + sha256)
+- Homebrew: `packaging/brew/Formula/lib-cli-exit-tools.rb` (fill sha256 and vendored resources)
+- Nix: `packaging/nix/flake.nix` (use working tree or pin to GitHub rev with sha256)
+
+These are templates; fill placeholders before publishing.
+
+## CI & Publishing
+
+GitHub Actions workflows are included:
+
+- `.github/workflows/ci.yml` — lint/type/test, build wheel/sdist, verify pipx and uv installs, Nix and Conda builds (CI-only; no local install required).
+- `.github/workflows/release.yml` — on tags `v*.*.*`, builds artifacts and publishes to PyPI when `PYPI_API_TOKEN` secret is set.
+
+To publish a release:
+1. Bump versions (`pyproject.toml`, `src/lib_cli_exit_tools/__init__conf__.py`, `CHANGELOG.md`).
+2. Tag the commit (`git tag v0.1.1 && git push --tags`).
+3. Ensure `PYPI_API_TOKEN` secret is configured in the repo.
+4. Release workflow uploads wheel/sdist to PyPI.
+
+Conda/Homebrew/Nix: use files in `packaging/` to submit to their ecosystems. CI also attempts builds to validate recipes, but does not publish automatically.
+
+### Local Codecov uploads
+
+- `make test` will generate `coverage.xml` and attempt to upload via the Codecov CLI or the bash uploader.
+- For private repos, set `CODECOV_TOKEN` (see `.env.example`) or export it in your shell.
+- For public repos, a token is typically not required.
+
+## License
+
+MIT

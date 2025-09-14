@@ -3,6 +3,7 @@ from __future__ import annotations
 import platform
 import signal
 from typing import Optional, List
+from types import FrameType
 
 import click
 
@@ -21,11 +22,15 @@ class SigTermError(Exception):
     """Raised on SIGTERM (POSIX) or SIGBREAK (Windows)."""
 
 
-def _sigint_handler(signo, frame) -> None:  # type: ignore[no-untyped-def]
+class SigBreakError(Exception):
+    """Raised on SIGBREAK (Windows Ctrl+Break)."""
+
+
+def _sigint_handler(signo: int, frame: FrameType | None) -> None:
     raise SigIntError()
 
 
-def _sigterm_handler(signo, frame) -> None:  # type: ignore[no-untyped-def]
+def _sigterm_handler(signo: int, frame: FrameType | None) -> None:
     raise SigTermError()
 
 
@@ -40,9 +45,13 @@ def _install_signal_handlers() -> None:
     if is_posix:
         signal.signal(signal.SIGTERM, _sigterm_handler)
     else:
-        # SIGBREAK exists on Windows; mapping it to graceful shutdown semantics
+        # SIGBREAK exists on Windows
         try:  # pragma: no cover - depends on host OS
-            signal.signal(signal.SIGBREAK, _sigterm_handler)  # type: ignore[attr-defined]
+
+            def _sigbreak_handler(signo: int, frame: FrameType | None) -> None:
+                raise SigBreakError()
+
+            signal.signal(signal.SIGBREAK, _sigbreak_handler)  # type: ignore[attr-defined]
         except Exception:
             pass
 
@@ -87,6 +96,13 @@ def _handle_exception(e: BaseException) -> int:
     if isinstance(e, SigTermError):
         click.echo("Beendet (SIGTERM/SIGBREAK).", err=True)
         return 143  # 128 + SIGTERM(15)
+    if isinstance(e, SigBreakError):  # precise mapping for Windows Ctrl+Break
+        click.echo("Beendet (SIGBREAK).", err=True)
+        return 149  # 128 + SIGBREAK(21)
+
+    # Broken pipe: stay quiet and exit with configured code
+    if isinstance(e, BrokenPipeError):
+        return int(tools.config.broken_pipe_exit_code)
 
     # Click-raised errors (when standalone_mode=False) become ClickException or SystemExit
     if isinstance(e, click.ClickException):

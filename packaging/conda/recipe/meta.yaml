@@ -1,0 +1,44 @@
+{% set name = "lib_cli_exit_tools" %}
+{% set version = "0.1.0" %}
+
+package:
+  name: {{ name|lower }}
+  version: {{ version }}
+
+{% if environ.get('CONDA_USE_LOCAL', '0') == '1' %}
+source:
+  # Build from local checkout (CI/dev). Set CONDA_USE_LOCAL=1.
+  path: ../../..
+{% else %}
+source:
+  # For released tags; replace sha256 before submitting to conda-forge
+  url: https://github.com/bitranox/{{ name }}/archive/refs/tags/v{{ version }}.tar.gz
+  sha256: "<fill-me>"
+{% endif %}
+
+build:
+  noarch: python
+  script: "{{ PYTHON }} -m pip install . -vv"
+
+requirements:
+  host:
+    - python >=3.12
+    - pip
+  run:
+    - python >=3.12
+    - click >=8.1
+
+test:
+  commands:
+    - python -c "import lib_cli_exit_tools as m; print(m.__all__)"
+    - lib_cli_exit_tools --version
+
+about:
+  home: https://github.com/bitranox/lib_cli_exit_tools
+  license: MIT
+  license_family: MIT
+  summary: "CLI exit handling helpers: clean signals, exit codes, and error printing"
+
+extra:
+  recipe-maintainers:
+    - <your-github-id>

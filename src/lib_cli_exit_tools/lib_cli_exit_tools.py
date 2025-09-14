@@ -1,11 +1,29 @@
-# cli_exit_tools.py
+"""Core helpers for clean CLI exits and error printing.
+
+Exposed API:
+- config: runtime options (traceback toggle, exit code style, broken pipe behavior)
+- get_system_exit_code(exc): map exceptions → OS-appropriate exit codes
+- print_exception_message(...): print concise error, optional traceback, stdout/stderr if present
+- flush_streams(): flush stdout/stderr safely
+"""
+
+from __future__ import annotations
+
+import subprocess
 import sys
 import traceback
-from typing import Any, Optional, TextIO
+from typing import Any, Literal, Optional, TextIO
 
 
 class _Config(object):
+    """Runtime configuration for library behavior."""
+
     traceback: bool = False
+    # errno → numeric OS codes (default) | sysexits (64–78 semantics)
+    exit_code_style: Literal["errno", "sysexits"] = "errno"
+    # Exit code to use for BrokenPipeError (common in pipelines). Typical choices:
+    # 141 (128+SIGPIPE), 0 (treat as benign truncation), or 32 (EPIPE).
+    broken_pipe_exit_code: int = 141
 
 
 config = _Config()
@@ -49,27 +67,74 @@ def get_system_exit_code(exc: BaseException) -> int:
     """
     # get_system_exit_code}}}
 
-    # from https://www.thegeekstuff.com/2010/10/linux-error-codes
-    # dict key sorted from most specific to unspecific
-    posix_exceptions = {FileNotFoundError: 2, PermissionError: 13, FileExistsError: 17, TypeError: 22, ValueError: 22, RuntimeError: 1, BaseException: 1}
-    windows_exceptions = {FileNotFoundError: 2, PermissionError: 5, ValueError: 13, FileExistsError: 80, TypeError: 87, RuntimeError: 1, BaseException: 1}
+    # Prefer precise sources first: explicit returncodes, signals, winerror/errno
+    # subprocess returncode
+    if isinstance(exc, subprocess.CalledProcessError):
+        try:
+            return int(exc.returncode)
+        except Exception:
+            return 1
+
+    # KeyboardInterrupt should map to 130 regardless of platform
+    if isinstance(exc, KeyboardInterrupt):
+        return 130
+
+    # Windows-specific error code passthrough
+    if hasattr(exc, "winerror"):
+        try:
+            return int(getattr(exc, "winerror"))  # type: ignore[arg-type]
+        except (AttributeError, TypeError, ValueError):
+            pass
+
+    # Broken pipe (common when piping to head/less): don't be noisy
+    if isinstance(exc, BrokenPipeError):
+        return int(config.broken_pipe_exit_code)
+
+    # If an errno is present (OSError family), prefer it
+    if isinstance(exc, OSError) and getattr(exc, "errno", None) is not None:
+        try:
+            return int(exc.errno)  # type: ignore[arg-type]
+        except Exception:
+            pass
+
+    # Fallback mappings (ordered from specific to general)
+    # POSIX references: errno.h; Windows: common Win32/WSA equivalents when errno/winerror absent
+    posix_exceptions = {
+        FileNotFoundError: 2,  # ENOENT
+        PermissionError: 13,  # EACCES
+        FileExistsError: 17,  # EEXIST
+        IsADirectoryError: 21,  # EISDIR
+        NotADirectoryError: 20,  # ENOTDIR
+        TimeoutError: 110,  # ETIMEDOUT
+        TypeError: 22,  # EINVAL
+        ValueError: 22,  # EINVAL
+        RuntimeError: 1,
+    }
+    windows_exceptions = {
+        FileNotFoundError: 2,  # ERROR_FILE_NOT_FOUND
+        PermissionError: 5,  # ERROR_ACCESS_DENIED
+        FileExistsError: 80,  # ERROR_FILE_EXISTS
+        IsADirectoryError: 267,  # ERROR_DIRECTORY
+        NotADirectoryError: 267,  # ERROR_DIRECTORY
+        TimeoutError: 1460,  # ERROR_TIMEOUT
+        TypeError: 87,  # ERROR_INVALID_PARAMETER
+        ValueError: 87,  # map to invalid parameter
+        RuntimeError: 1,
+    }
 
     # Handle SystemExit
     if isinstance(exc, SystemExit):
         exit_code = int(exc.args[0])
         return exit_code
 
-    if hasattr(exc, "winerror"):
-        try:
-            exit_code = int(exc.winerror)  # type: ignore
-            return exit_code
-        except (AttributeError, TypeError):
-            pass
+    # At this point, if a sysexits mapping is requested, apply it
+    if config.exit_code_style == "sysexits":
+        return _sysexits_mapping(exc)
 
     if "posix" in sys.builtin_module_names:
         exceptions = posix_exceptions
     else:
-        exceptions = windows_exceptions     # pragma: no cover
+        exceptions = windows_exceptions  # pragma: no cover
 
     # Handle all other Exceptions
     for exception in exceptions:
@@ -80,8 +145,46 @@ def get_system_exit_code(exc: BaseException) -> int:
     return 1  # pragma: no cover
 
 
+def _sysexits_mapping(exc: BaseException) -> int:
+    """Map common exceptions to sysexits(3) style codes.
+
+    EX_USAGE(64), EX_NOINPUT(66), EX_NOPERM(77), EX_IOERR(74), EX_CONFIG(78)
+    Defaults to 1 if no good fit is found.
+    """
+    # Preserve explicit returncodes and Ctrl+C convention
+    if isinstance(exc, SystemExit):
+        try:
+            return int(exc.code)  # type: ignore[attr-defined]
+        except Exception:
+            return 1
+    if isinstance(exc, KeyboardInterrupt):
+        return 130
+    if isinstance(exc, subprocess.CalledProcessError):
+        try:
+            return int(exc.returncode)
+        except Exception:
+            return 1
+    # Broken pipe often considered benign; keep configured behavior
+    if isinstance(exc, BrokenPipeError):
+        return int(config.broken_pipe_exit_code)
+
+    # Map by category
+    if isinstance(exc, (TypeError, ValueError)):
+        return 64  # EX_USAGE
+    if isinstance(exc, FileNotFoundError):
+        return 66  # EX_NOINPUT
+    if isinstance(exc, PermissionError):
+        return 77  # EX_NOPERM
+    if isinstance(exc, (OSError, IOError)):
+        return 74  # EX_IOERR
+    # Misc
+    return 1
+
+
 # print_exception_message{{{
-def print_exception_message(trace_back: bool = config.traceback, length_limit: int = 500, stream: Optional[TextIO] = None) -> None:
+def print_exception_message(
+    trace_back: bool = config.traceback, length_limit: int = 500, stream: Optional[TextIO] = None
+) -> None:
     """
     Prints the Exception Message to stderr. If trace_back is True, it also prints the traceback information.
     If the exception has stdout, stderr attributes (like subprocess.CalledProcessError), those will also be printed.
@@ -138,7 +241,9 @@ def print_exception_message(trace_back: bool = config.traceback, length_limit: i
 
         # If message exceeds length limit, truncate it
         if len(exc_info_msg) > length_limit:
-            exc_info_msg = f"{exc_info_msg[:length_limit]} ...[TRUNCATED at {length_limit} characters]"
+            exc_info_msg = (
+                f"{exc_info_msg[:length_limit]} ...[TRUNCATED at {length_limit} characters]"
+            )
 
         # Print stdout/stderr if they exist in the exception
         _print_output(exc_info, "stdout", stream)

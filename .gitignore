@@ -51,12 +51,15 @@ __pycache__/
 # pytest, coverage, MyPy, Hypothesis
 .pytest_cache/
 .mypy_cache/
+.pyright/
 .coverage*
 htmlcov/
 nosetests.xml
 coverage.xml
 *.cover
 .hypothesis/
+.tox/
+.nox/
 
 # general cache directories (any project-level caching)
 .cache/
@@ -71,6 +74,7 @@ dist/
 *.egg-info/    # metadata for pip installs
 *.egg
 *.whl
+pip-wheel-metadata/
 *.manifest     # PyInstaller metadata
 *.spec         # PyInstaller spec files
 
@@ -158,3 +162,17 @@ ehthumbs.db
 
 # Thunderbird build artifact (created temporarily by pack script)
 sources/manifest.json
+
+# ====================================
+# Tool-specific extras
+# ====================================
+# Codecov uploader script (downloaded during local uploads)
+codecov.sh
+
+# Nix build result symlink
+result
+
+# Optional lockfiles (for alternative managers)
+poetry.lock
+pdm.lock
+uv.lock
