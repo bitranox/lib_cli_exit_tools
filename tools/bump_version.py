@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, Tuple, Optional, cast
 import json
 import urllib.request
+import hashlib
 
 # Optional TOML parser for Python < 3.11 support during type checking
 try:  # pragma: no cover - import resolution
@@ -76,35 +77,59 @@ def _split_dep_spec(raw: str) -> tuple[str, str]:
     return name.lower(), spec
 
 
-def _read_pyproject_deps(pyproject: Path) -> Dict[str, str]:
-    """Read [project].dependencies into {name_lower: spec}.
+def _deps_from_toml_text(text: str) -> Dict[str, str]:
+    """Parse dependencies from TOML text using tomllib/tomli if available.
 
-    Prefers tomllib/tomli for correctness; falls back to a minimal regex
-    that parses a dependencies = ["..."] array when the toml parser
-    is unavailable.
+    Returns an empty dict if toml parsing is unavailable or fails.
+    """
+    if _tomllib is None:
+        return {}
+    try:
+        data = cast(dict[str, Any], cast(Any, _tomllib).loads(text))
+        raw_deps = cast(list[Any], data.get("project", {}).get("dependencies", []))
+    except Exception:
+        return {}
+
+    out: Dict[str, str] = {}
+    for d in raw_deps:
+        if isinstance(d, str) and d:
+            name, spec = _split_dep_spec(d)
+            out[name] = spec
+    return out
+
+
+def _deps_from_regex_text(text: str) -> Dict[str, str]:
+    """Best-effort dependency parse via regex.
+
+    Looks for a top-level 'dependencies = ["..."]' array inside the [project] table.
+    This is intentionally minimal and serves as a fallback when TOML parsing is
+    not available.
+    """
+    out: Dict[str, str] = {}
+    m = re.search(r"(?ms)^dependencies\s*=\s*\[(.*?)\]", text)
+    if not m:
+        return out
+    body = m.group(1)
+    for d in re.findall(r"\"([^\"]+)\"", body):
+        if not d:
+            continue
+        name, spec = _split_dep_spec(d)
+        out[name] = spec
+    return out
+
+
+def _read_pyproject_deps(pyproject: Path) -> Dict[str, str]:
+    """Read [project].dependencies into a normalized mapping.
+
+    Strategy: try TOML parsing first for correctness, otherwise fall back to a
+    simple regex-based extraction. Output keys are normalized to lowercase and
+    values are the raw version spec (possibly empty).
     """
     text = pyproject.read_text(encoding="utf-8")
-    out: Dict[str, str] = {}
-    if _tomllib is not None:
-        try:
-            data = cast(dict[str, Any], cast(Any, _tomllib).loads(text))
-            deps = cast(list[Any], data.get("project", {}).get("dependencies", []))
-            for d in deps:
-                if isinstance(d, str) and d:
-                    name, spec = _split_dep_spec(d)
-                    out[name] = spec
-        except Exception:
-            # Fall back to regex parsing below
-            out.clear()
-    if not out:
-        m = re.search(r"(?ms)^dependencies\s*=\s*\[(.*?)\]", text)
-        if m:
-            body = m.group(1)
-            for d in re.findall(r"\"([^\"]+)\"", body):
-                if d:
-                    name, spec = _split_dep_spec(d)
-                    out[name] = spec
-    return out
+    deps = _deps_from_toml_text(text)
+    if deps:
+        return deps
+    return _deps_from_regex_text(text)
 
 
 def _pinned_version(spec: str) -> str | None:
@@ -186,14 +211,47 @@ def _update_conda_recipe(version: str, path: Path) -> None:
         if new_text != text:
             text = new_text
             changed = True
+    # Attempt to set sha256 for remote source tarball (used when COND A_USE_LOCAL != 1)
+    try:
+        tar_url = f"https://github.com/bitranox/lib_cli_exit_tools/archive/refs/tags/v{version}.tar.gz"
+        with urllib.request.urlopen(tar_url, timeout=10) as resp:
+            data = resp.read()
+        sha = hashlib.sha256(data).hexdigest()
+        text_sha = re.sub(r'(sha256:\s*")([^"]*)(")', rf"\1{sha}\3", text)
+        if text_sha != text:
+            text = text_sha
+            changed = True
+            print(f"[bump] conda recipe: sha256 updated for v{version}")
+    except Exception:
+        # Network may be unavailable; leave sha256 as-is
+        pass
+
     if changed:
         path.write_text(text, encoding="utf-8")
         print(f"[bump] conda recipe: version/python/deps synced ({version})")
 
 
 def _brew_set_source_tag(text: str, version: str) -> tuple[str, bool]:
+    """Set source URL tag and sha256 for the main formula tarball (not resources)."""
+    changed = False
     new_text = re.sub(r"(refs/tags/)v[0-9]+\.[0-9]+\.[0-9]+(\.tar\.gz)", rf"\1v{version}\2", text)
-    return new_text, new_text != text
+    if new_text != text:
+        changed = True
+        text = new_text
+    # Try to fetch tarball and compute sha256; replace first sha256 occurrence (main formula)
+    try:
+        tar_url = f"https://github.com/bitranox/lib_cli_exit_tools/archive/refs/tags/v{version}.tar.gz"
+        with urllib.request.urlopen(tar_url, timeout=10) as resp:
+            data = resp.read()
+        sha = hashlib.sha256(data).hexdigest()
+        pattern = r'(^\s*sha256\s+")([^"]+)(")'
+        updated = re.sub(pattern, rf"\1{sha}\3", text, count=1, flags=re.M)
+        if updated != text:
+            text = updated
+            changed = True
+    except Exception:
+        pass
+    return text, changed
 
 
 def _brew_set_python_dep(text: str, min_py: str | None) -> tuple[str, bool]:

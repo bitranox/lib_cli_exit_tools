@@ -135,7 +135,7 @@ build: ## Build wheel/sdist and attempt conda, brew, and nix builds (auto-instal
 	$(PY) -m build
 	@echo "[2/4] Attempting conda-build (auto-install Miniforge if needed)"
 	@if command -v conda >/dev/null 2>&1; then \
-	  conda build $(CONDA_RECIPE) || echo "conda-build failed (ok to skip)"; \
+	  CONDA_USE_LOCAL=1 conda build $(CONDA_RECIPE) || echo "conda-build failed (ok to skip)"; \
 	else \
 	  echo "[bootstrap] conda not found; installing Miniforge..."; \
 	  OS=$$(uname -s | tr '[:upper:]' '[:lower:]'); ARCH=$$(uname -m); \
@@ -150,21 +150,24 @@ build: ## Build wheel/sdist and attempt conda, brew, and nix builds (auto-instal
 	    INST=$$HOME/miniforge3; \
 	    curl -fsSL $$URL -o /tmp/miniforge.sh && bash /tmp/miniforge.sh -b -p $$INST; \
 	    $$INST/bin/conda install -y conda-build || true; \
-	    $$INST/bin/conda build $(CONDA_RECIPE) || true; \
+	    CONDA_USE_LOCAL=1 $$INST/bin/conda build $(CONDA_RECIPE) || true; \
 	  fi; \
 	fi
 	@echo "[3/4] Attempting Homebrew build/install from local formula (auto-install if needed)"
-	@if command -v brew >/dev/null 2>&1; then \
-	  brew install --build-from-source $(BREW_FORMULA) || echo "brew build failed (ok to skip; fill sha256)"; \
+	@OS=$$(uname -s | tr '[:upper:]' '[:lower:]'); \
+	if [ "$$OS" != "darwin" ]; then \
+	  echo "[brew] skipping: Homebrew formula build requires macOS and a tap. See packaging/brew/Formula/ and https://docs.brew.sh."; \
 	else \
-	  echo "[bootstrap] brew not found; installing Homebrew..."; \
-	  /bin/bash -c "$$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" || true; \
-	  BREW=$$(command -v brew || true); \
-	  if [ -z "$$BREW" ]; then \
-	    if [ -x /home/linuxbrew/.linuxbrew/bin/brew ]; then BREW=/home/linuxbrew/.linuxbrew/bin/brew; fi; \
+	  if command -v brew >/dev/null 2>&1; then \
+	    brew install --build-from-source $(BREW_FORMULA) || echo "brew build failed (ok to skip; move formula into a tap to test)"; \
+	  else \
+	    echo "[bootstrap] brew not found; installing Homebrew..."; \
+	    /bin/bash -c "$$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" || true; \
+
+	    BREW=$$(command -v brew || true); \
 	    if [ -z "$$BREW" ] && [ -x /opt/homebrew/bin/brew ]; then BREW=/opt/homebrew/bin/brew; fi; \
+	    if [ -n "$$BREW" ]; then $$BREW install --build-from-source $(BREW_FORMULA) || true; fi; \
 	  fi; \
-	  if [ -n "$$BREW" ]; then $$BREW install --build-from-source $(BREW_FORMULA) || true; fi; \
 	fi
 	@echo "[4/4] Attempting Nix flake build (auto-install if needed)"
 	@# Inline: update vendored hatchling SRI hash (if needed) before nix build
