@@ -67,15 +67,17 @@ shell_command = _shell_command()
 
 
 def print_info() -> None:
-    print(
-        f"""
-Info for {name}:
-
-    {title}
-
-    Version : {version}
-    Url     : {url}
-    Author  : {author}
-    Email   : {author_email}
-""".rstrip()
-    )
+    """Print resolved metadata in a compact, aligned block."""
+    fields = [
+        ("name", name),
+        ("title", title),
+        ("version", version),
+        ("url", url),
+        ("author", author),
+        ("author_email", author_email),
+        ("shell_command", shell_command),
+    ]
+    pad = max(len(k) for k, _ in fields)
+    lines = [f"Info for {name}:", ""]
+    lines += [f"    {k.ljust(pad)} = {v}" for k, v in fields]
+    print("\n".join(lines))
