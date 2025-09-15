@@ -46,6 +46,13 @@ when writing or refracturing Python scripts, apply those Rules :
 - `make build` — build Python wheel/sdist and attempt Conda/Homebrew/Nix builds (auto‑installs missing tools when needed).
 - `make clean` — remove caches, coverage, and build artifacts (includes `dist/` and `build/`).
 
+### Versioning & Releases
+
+- Single source of truth for the package version is `pyproject.toml` (`[project].version`).
+- Runtime code reads metadata via `importlib.metadata`; do not duplicate the version in code files.
+- On a version bump, update only `pyproject.toml` and the `CHANGELOG.md` entry; do not edit `src/lib_cli_exit_tools/__init__conf__.py` for versioning.
+- Tag releases `vX.Y.Z` and push tags; CI will build artifacts and publish when configured.
+
 ### Common Make Targets (Alphabetical)
 
 | Target    | One‑line description |

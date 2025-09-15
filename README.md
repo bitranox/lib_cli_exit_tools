@@ -178,6 +178,13 @@ COVERAGE=off make test       # disable coverage locally
 COVERAGE=on make test        # force coverage and generate coverage.xml/codecov.xml
 ```
 
+## Versioning & Metadata
+
+- Single source of truth for package metadata is `pyproject.toml` (`[project]`).
+- The library reads its own installed metadata at runtime via `importlib.metadata` (see `src/lib_cli_exit_tools/__init__conf__.py`).
+- Do not duplicate the version in code; bump only `pyproject.toml` and update `CHANGELOG.md`.
+- Console script name is discovered from entry points; defaults to `lib_cli_exit_tools`.
+
 ## Packaging Skeletons
 
 Starter files for package managers live under `packaging/`:
@@ -196,7 +203,7 @@ GitHub Actions workflows are included:
 - `.github/workflows/release.yml` — on tags `v*.*.*`, builds artifacts and publishes to PyPI when `PYPI_API_TOKEN` secret is set.
 
 To publish a release:
-1. Bump versions (`pyproject.toml`, `src/lib_cli_exit_tools/__init__conf__.py`, `CHANGELOG.md`).
+1. Bump `pyproject.toml` version and update `CHANGELOG.md`.
 2. Tag the commit (`git tag v0.1.1 && git push --tags`).
 3. Ensure `PYPI_API_TOKEN` secret is configured in the repo.
 4. Release workflow uploads wheel/sdist to PyPI.
