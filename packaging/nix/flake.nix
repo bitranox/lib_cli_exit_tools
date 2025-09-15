@@ -23,6 +23,7 @@
           };
           propagatedBuildInputs = [
             pypkgs.packaging
+            pypkgs.tomli
             pypkgs.pathspec
             pypkgs.pluggy
             pypkgs."trove-classifiers"
