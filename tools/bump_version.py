@@ -139,11 +139,20 @@ def _pinned_version(spec: str) -> str | None:
 
 
 def _pypi_sdist_info(name: str, version: str) -> Tuple[str | None, str | None]:
-    """Return (sdist_url, sha256) for a PyPI project if available, else (None, None)."""
+    """Return (sdist_url, sha256) for a PyPI project version.
+
+    Handles both the version-specific endpoint (preferred) and falls back to
+    scanning the global releases map if necessary.
+    """
     try:
         url = f"https://pypi.org/pypi/{name}/{version}/json"
         with urllib.request.urlopen(url, timeout=10) as resp:  # nosec - metadata only
             data = json.loads(resp.read().decode("utf-8"))
+        # Version-specific payload exposes artifacts under the top-level 'urls'
+        for file in data.get("urls", []):
+            if file.get("packagetype") == "sdist":
+                return file.get("url"), file.get("digests", {}).get("sha256")
+        # Some mirrors or legacy endpoints may include a 'releases' map
         for file in data.get("releases", {}).get(version, []):
             if file.get("packagetype") == "sdist":
                 return file.get("url"), file.get("digests", {}).get("sha256")
