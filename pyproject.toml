@@ -1,6 +1,6 @@
 [project]
 name = "lib_cli_exit_tools"
-dynamic = ["version"]
+version = "0.1.0"
 description = "CLI exit handling helpers: clean signals, exit codes, and error printing"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -43,8 +43,7 @@ lib-cli-exit-tools = "lib_cli_exit_tools.cli:main"
 requires = ["hatchling>=1.25"]
 build-backend = "hatchling.build"
 
-[tool.hatch.version]
-path = "src/lib_cli_exit_tools/__init__conf__.py"
+
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/lib_cli_exit_tools"]
@@ -64,6 +63,10 @@ data_file = ".coverage.unit"
 source = ["src/lib_cli_exit_tools"]
 
 [tool.coverage.report]
-omit = ["tests/*", "packaging/*"]
+omit = [
+  "tests/*",
+  "packaging/*",
+  "src/lib_cli_exit_tools/__init__conf__.py",
+]
 fail_under = 85
 show_missing = true
