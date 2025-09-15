@@ -106,13 +106,80 @@ pip install .
 | `test`            | Lint, type-check, run tests with coverage, upload to Codecov                               |
 | `run`             | Run module CLI (requires dev install or src on PYTHONPATH)                                 |
 | `version-current` | Print current version from pyproject.toml                                                  |
-| `bump`            | Bump version: VERSION=X.Y.Z or PART=major                                                  |minor|patch (default: patch); updates pyproject.toml and CHANGELOG.md |
+| `bump`            | Bump version (updates pyproject.toml and CHANGELOG.md)                                     |
 | `bump-patch`      | Bump patch version (X.Y.Z -> X.Y.(Z+1))                                                    |
 | `bump-minor`      | Bump minor version (X.Y.Z -> X.(Y+1).0)                                                    |
 | `bump-major`      | Bump major version ((X+1).0.0)                                                             |
 | `clean`           | Remove caches, build artifacts, and coverage                                               |
 | `push`            | Commit all changes once and push to GitHub (no CI monitoring)                              |
 | `build`           | Build wheel/sdist and attempt conda, brew, and nix builds (auto-installs tools if missing) |
+| `menu`            | Interactive TUI to run targets and edit parameters (requires dev dep: textual)             |
+| `menu-cli`        | Force simple prompt menu (no TUI)                                                          |
+| `menu-tui`        | Force Textual TUI (may not work in limited terminals)                                      |
+
+#### Target Parameters (env vars)
+
+- Global
+  - `PY` (default: `python3`) — Python interpreter used to run scripts
+  - `PIP` (default: `pip`) — pip executable used by bootstrap/install
+
+- `install`
+  - No specific parameters (respects `PY`, `PIP`).
+
+- `dev`
+  - No specific parameters (respects `PY`, `PIP`).
+
+- `test`
+  - `COVERAGE=on|auto|off` (default: `on`) — controls pytest coverage run and Codecov upload
+  - `SKIP_BOOTSTRAP=1` — skip auto-install of dev tools if missing
+  - Also respects `CODECOV_TOKEN` when needed for uploads
+
+- `run`
+  - No parameters via `make` (always shows `--help`). For custom args: `python scripts/run_cli.py -- <args>`.
+
+- `version-current`
+  - No parameters
+
+- `bump`
+  - `VERSION=X.Y.Z` — explicit target version
+  - `PART=major|minor|patch` — semantic part to bump (default if `VERSION` not set: `patch`)
+  - Examples:
+    - `make bump VERSION=1.0.2`
+    - `make bump PART=minor`
+
+- `bump-patch` / `bump-minor` / `bump-major`
+  - No parameters; shorthand for `make bump PART=...`
+
+- `clean`
+  - No parameters
+
+- `push`
+  - `REMOTE=<name>` (default: `origin`) — git remote to push to
+
+- `build`
+  - No parameters via `make`. Advanced: use the script directly, e.g. `python scripts/build.py --no-conda --no-nix`.
+
+- `release`
+  - `REMOTE=<name>` (default: `origin`) — git remote to push to
+  - Advanced (via script): `python scripts/release.py --retries 5 --retry-wait 3.0`
+
+### Interactive Menu (Textual)
+
+`make menu` launches a colorful terminal UI (powered by `textual`) to browse targets, edit parameters, and run them with live output. If the terminal doesn’t support a full TUI or `textual` can’t load, it falls back to a simple prompt menu.
+
+Install dev extras if you haven’t:
+
+```bash
+pip install -e .[dev]
+```
+
+Run the menu:
+
+```bash
+make menu
+make menu-cli   # always use simple prompt menu
+make menu-tui   # force TUI (if your terminal supports it)
+```
 
 #### Target Details
 
