@@ -130,6 +130,7 @@ pip install .
 - `test`
   - `COVERAGE=on|auto|off` (default: `on`) — controls pytest coverage run and Codecov upload
   - `SKIP_BOOTSTRAP=1` — skip auto-install of dev tools if missing
+  - `TEST_VERBOSE=1` — echo each command executed by the test harness
   - Also respects `CODECOV_TOKEN` when needed for uploads
 
 - `run`

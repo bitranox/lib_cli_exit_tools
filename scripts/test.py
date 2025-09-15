@@ -15,6 +15,10 @@ from scripts._utils import bootstrap_dev, cmd_exists, run, sync_packaging  # noq
 @click.option("--coverage", type=click.Choice(["on", "auto", "off"]), default="on")
 @click.option("--verbose", "-v", is_flag=True, help="Print executed commands before running them")
 def main(coverage: str, verbose: bool) -> None:
+    env_verbose = os.getenv("TEST_VERBOSE", "").lower()
+    if not verbose and env_verbose in {"1", "true", "yes", "on"}:
+        verbose = True
+
     def _run(cmd: list[str] | str, *, env: dict[str, str] | None = None, check: bool = True) -> None:
         display = cmd if isinstance(cmd, str) else " ".join(cmd)
         if verbose:

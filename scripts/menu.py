@@ -91,6 +91,12 @@ def _build_targets() -> list[Target]:
                     default=_env_default("SKIP_BOOTSTRAP", "0"),
                     choices=["0", "1"],
                 ),
+                Param(
+                    "TEST_VERBOSE",
+                    "Verbose test runner output (1=yes, 0=no)",
+                    default=_env_default("TEST_VERBOSE", "0"),
+                    choices=["0", "1"],
+                ),
             ],
         ),
         Target("run", "Run CLI (shows --help)", []),
