@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.0.0] - 2025-09-15
+
+- public release
+
 ## [Unreleased]
 
 ### Added
