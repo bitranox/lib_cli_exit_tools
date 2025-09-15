@@ -16,11 +16,9 @@
           pname = "hatchling";
           version = "1.25.0";
           format = "wheel"; # install straight from wheel to avoid circular build-backend
-          src = pkgs.fetchPypi {
-            pname = pname;
-            version = version;
-            format = "wheel";
-            python = "py3"; # ensure the py3-none-any wheel is fetched (not py2.py3)
+          # Use explicit URL for py3 wheel; nixpkgs 24.05 fetchPypi may choose a py2.py3 path.
+          src = pkgs.fetchurl {
+            url = "https://files.pythonhosted.org/packages/py3/h/hatchling/${pname}-${version}-py3-none-any.whl";
             hash = "sha256-tHlI5F1NlzA0WE3UyznBS2pwInzyh6t+wK15g0CKiCw=";
           };
           propagatedBuildInputs = [
