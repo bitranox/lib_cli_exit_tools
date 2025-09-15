@@ -24,8 +24,9 @@ def main(coverage: str, verbose: bool) -> None:
         if verbose:
             click.echo(f"  $ {display}")
             if env:
-                env_view = " ".join(f"{k}={v}" for k, v in env.items())
-                if env_view:
+                overrides = {k: v for k, v in env.items() if os.environ.get(k) != v}
+                if overrides:
+                    env_view = " ".join(f"{k}={v}" for k, v in overrides.items())
                     click.echo(f"    env {env_view}")
         run(cmd, env=env, check=check)  # type: ignore[arg-type]
 

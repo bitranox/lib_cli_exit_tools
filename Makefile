@@ -18,7 +18,7 @@ FAIL_UNDER ?= 80
 # - off  : never run coverage
 COVERAGE ?= on
 
-.PHONY: help install dev test run clean build push release version-current bump bump-patch bump-minor bump-major menu menu-tui _bootstrap-dev
+.PHONY: help install dev test run clean build push release version-current bump bump-patch bump-minor bump-major menu _bootstrap-dev
 
 help: ## Show help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'

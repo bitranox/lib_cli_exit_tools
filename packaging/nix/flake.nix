@@ -35,7 +35,7 @@
       {
         packages.default = pypkgs.buildPythonPackage {
           pname = "lib_cli_exit_tools";
-          version = "1.1.0";
+          version = "1.0.2";
           pyproject = true;
           # Build from the repository root (two levels up from packaging/nix)
           src = ../..;
@@ -43,7 +43,7 @@
           # src = pkgs.fetchFromGitHub {
           #   owner = "bitranox";
           #   repo = "lib_cli_exit_tools";
-          #   rev = "v1.1.0";
+          #   rev = "v1.0.2";
           #   sha256 = "<fill-me>";
           # };
 

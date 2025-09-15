@@ -4,18 +4,29 @@ import asyncio
 import os
 import signal
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
+from typing import TYPE_CHECKING, Callable, Dict, Optional
 
 import contextlib
 
 from rich.text import Text
 
 if TYPE_CHECKING:
-    events = Any  # type: ignore
-    App = ComposeResult = Container = Horizontal = Vertical = Screen = ListView = ListItem = Label = Input = Button = Static = Select = RichLog = Any  # type: ignore
-
-    def reactive(value: Any) -> Any:  # type: ignore
-        ...
+    from textual import events
+    from textual.app import App, ComposeResult
+    from textual.containers import Container, Horizontal, Vertical
+    from textual.reactive import reactive
+    from textual.screen import Screen
+    from textual.widgets import (
+        Button,
+        Footer,
+        Input,
+        Label,
+        ListItem,
+        ListView,
+        RichLog,
+        Select,
+        Static,
+    )
 else:  # pragma: no cover
     try:
         from textual import events
