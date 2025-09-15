@@ -182,9 +182,7 @@ def _sysexits_mapping(exc: BaseException) -> int:
 
 
 # print_exception_message{{{
-def print_exception_message(
-    trace_back: bool = config.traceback, length_limit: int = 500, stream: Optional[TextIO] = None
-) -> None:
+def print_exception_message(trace_back: bool = config.traceback, length_limit: int = 500, stream: Optional[TextIO] = None) -> None:
     """
     Prints the Exception Message to stderr. If trace_back is True, it also prints the traceback information.
     If the exception has stdout, stderr attributes (like subprocess.CalledProcessError), those will also be printed.
@@ -241,9 +239,7 @@ def print_exception_message(
 
         # If message exceeds length limit, truncate it
         if len(exc_info_msg) > length_limit:
-            exc_info_msg = (
-                f"{exc_info_msg[:length_limit]} ...[TRUNCATED at {length_limit} characters]"
-            )
+            exc_info_msg = f"{exc_info_msg[:length_limit]} ...[TRUNCATED at {length_limit} characters]"
 
         # Print stdout/stderr if they exist in the exception
         _print_output(exc_info, "stdout", stream)

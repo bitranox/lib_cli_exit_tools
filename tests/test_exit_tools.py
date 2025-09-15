@@ -21,9 +21,7 @@ def test_get_system_exit_code_system_exit():
         assert get_system_exit_code(e) == 99
 
 
-@pytest.mark.skipif(
-    sys.platform.startswith("win"), reason="POSIX-specific expectations; skip on Windows"
-)
+@pytest.mark.skipif(sys.platform.startswith("win"), reason="POSIX-specific expectations; skip on Windows")
 def test_get_system_exit_code_common_posix():
     try:
         raise FileNotFoundError("x")
