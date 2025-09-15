@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = ["click>=8.1"]
 license = { text = "MIT" }
-authors = [{ name = "Robert Nowotny", email = "bitranox@gmail.com" }]
+authors = [{ name = "bitranox", email = "bitranox@gmail.com" }]
 keywords = ["cli", "exit", "signals", "errors", "click"]
 classifiers = [
   "Programming Language :: Python :: 3",

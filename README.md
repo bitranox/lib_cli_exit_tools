@@ -137,14 +137,14 @@ lib_cli_exit_tools info
 Library:
 
 ```python
-from lib_cli_exit_tools import get_system_exit_code, print_exception_message, config
+import lib_cli_exit_tools
 
-config.traceback = False  # show short messages
+lib_cli_exit_tools.config.traceback = False  # show short messages
 try:
     raise FileNotFoundError("missing.txt")
 except Exception as e:
-    code = get_system_exit_code(e)   # 2 on POSIX
-    print_exception_message()        # prints: FileNotFoundError: missing.txt
+    code = lib_cli_exit_tools.get_system_exit_code(e)   # 2 on POSIX
+    lib_cli_exit_tools.print_exception_message()        # prints: FileNotFoundError: missing.txt
     raise SystemExit(code)
 ```
 

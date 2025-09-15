@@ -59,7 +59,7 @@ def _home_page(m: Any | None) -> str:
 
 def _author(m: Any | None) -> tuple[str, str]:
     if not m:
-        return ("Robert Nowotny", "bitranox@gmail.com")
+        return ("bitranox", "bitranox@gmail.com")
     mm: _MetaMapping = m  # type: ignore[assignment]
     return (_get_str(mm, "Author", ""), _get_str(mm, "Author-email", ""))
 
@@ -85,7 +85,7 @@ def _shell_command() -> str:
 name = _DIST_NAME
 title = _summary(_meta())
 version = _version()
-url = _home_page(_meta())
+homepage = _home_page(_meta())
 author, author_email = _author(_meta())
 shell_command = _shell_command()
 
@@ -96,7 +96,7 @@ def print_info() -> None:
         ("name", name),
         ("title", title),
         ("version", version),
-        ("url", url),
+        ("homepage", homepage),
         ("author", author),
         ("author_email", author_email),
         ("shell_command", shell_command),
