@@ -1,6 +1,6 @@
 [project]
 name = "lib_cli_exit_tools"
-version = "1.0.0"
+version = "1.0.1"
 description = "CLI exit handling helpers: clean signals, exit codes, and error printing"
 readme = "README.md"
 requires-python = ">=3.10"

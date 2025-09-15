@@ -198,8 +198,10 @@ build: ## Build wheel/sdist and attempt conda, brew, and nix builds (auto-instal
 
 release: ## Create and push tag vX.Y.Z from pyproject, create GitHub release (if gh present), then sync packaging
 	@set -euo pipefail; IFS=$$'\n\t'; \
-	VERSION=$$($(PY) -c "import re, pathlib; t=pathlib.Path('pyproject.toml').read_text(encoding='utf-8'); m=re.search(r'^version\\s*=\\s*\\\"([^\\\"]+)\\\"', t, re.M); print(m.group(1) if m else '')"); \
+	VERSION=$$($(PY) -c "import re, pathlib, sys; t=pathlib.Path('pyproject.toml').read_text(encoding='utf-8'); m=re.search(r'(?m)^version\\s*=\\s*\"([0-9]+(?:\\.[0-9]+){2})\"', t); sys.stdout.write(m.group(1) if m else '')"); \
+	VERSION=$$(printf '%s' "$$VERSION" | tr -d '\r\n'); \
 	if [ -z "$$VERSION" ]; then echo "[release] Could not read version from pyproject.toml"; exit 1; fi; \
+	case "$$VERSION" in *[!0-9.]*|*.*.*.*) echo "[release] Unexpected version format: '$$VERSION' (expect X.Y.Z)"; exit 1;; esac; \
 	echo "[release] Target version $$VERSION"; \
 	# Ensure clean working tree
 	if ! git diff --quiet || ! git diff --cached --quiet; then \
@@ -207,6 +209,8 @@ release: ## Create and push tag vX.Y.Z from pyproject, create GitHub release (if
 	fi; \
 	# Run verification
 	$(MAKE) test; \
+	# Remove stray local 'v' tag if present (past mistakes)
+	git tag -d v >/dev/null 2>&1 || true; \
 	BRANCH=$$(git rev-parse --abbrev-ref HEAD); \
 	echo "[release] Pushing branch $$BRANCH to $(REMOTE)"; \
 	git push $(REMOTE) $$BRANCH; \
