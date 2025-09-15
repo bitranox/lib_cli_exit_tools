@@ -11,7 +11,7 @@ import hashlib
 
 # Optional TOML parser for Python < 3.11 support during type checking
 try:  # pragma: no cover - import resolution
-    import tomllib as _tomllib  # type: ignore[attr-defined]
+    import tomllib as _tomllib  # type: ignore
 except Exception:  # pragma: no cover - best-effort fallback
     try:
         import tomli as _tomllib  # type: ignore
