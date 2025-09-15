@@ -156,37 +156,36 @@ def get_system_exit_code(exc: BaseException) -> int:
 def _sysexits_mapping(exc: BaseException) -> int:
     """Map common exceptions to sysexits(3) style codes.
 
-    EX_USAGE(64), EX_NOINPUT(66), EX_NOPERM(77), EX_IOERR(74), EX_CONFIG(78)
+    EX_USAGE(64), EX_NOINPUT(66), EX_NOPERM(77), EX_IOERR(74)
     Defaults to 1 if no good fit is found.
     """
-    # Preserve explicit returncodes and Ctrl+C convention
+    result: int
     if isinstance(exc, SystemExit):
         try:
-            return int(exc.code)  # type: ignore[attr-defined]
+            result = int(exc.code)  # type: ignore[attr-defined]
         except Exception:
-            return 1
-    if isinstance(exc, KeyboardInterrupt):
-        return 130
-    if isinstance(exc, subprocess.CalledProcessError):
+            result = 1
+    elif isinstance(exc, KeyboardInterrupt):
+        result = 130
+    elif isinstance(exc, subprocess.CalledProcessError):
         try:
-            return int(exc.returncode)
+            result = int(exc.returncode)
         except Exception:
-            return 1
-    # Broken pipe often considered benign; keep configured behavior
-    if isinstance(exc, BrokenPipeError):
-        return int(config.broken_pipe_exit_code)
-
-    # Map by category
-    if isinstance(exc, (TypeError, ValueError)):
-        return 64  # EX_USAGE
-    if isinstance(exc, FileNotFoundError):
-        return 66  # EX_NOINPUT
-    if isinstance(exc, PermissionError):
-        return 77  # EX_NOPERM
-    if isinstance(exc, (OSError, IOError)):
-        return 74  # EX_IOERR
-    # Misc
-    return 1
+            result = 1
+    elif isinstance(exc, BrokenPipeError):
+        # Broken pipe often considered benign; keep configured behavior
+        result = int(config.broken_pipe_exit_code)
+    elif isinstance(exc, (TypeError, ValueError)):
+        result = 64  # EX_USAGE
+    elif isinstance(exc, FileNotFoundError):
+        result = 66  # EX_NOINPUT
+    elif isinstance(exc, PermissionError):
+        result = 77  # EX_NOPERM
+    elif isinstance(exc, (OSError, IOError)):
+        result = 74  # EX_IOERR
+    else:
+        result = 1
+    return result
 
 
 def print_exception_message(trace_back: bool = config.traceback, length_limit: int = 500, stream: Optional[TextIO] = None) -> None:

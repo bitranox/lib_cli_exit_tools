@@ -4,7 +4,7 @@ import argparse
 import datetime as _dt
 import re
 from pathlib import Path
-from typing import Any, Dict, Tuple, cast
+from typing import Any, Dict, Tuple, Optional, cast
 import json
 import urllib.request
 
@@ -191,66 +191,74 @@ def _update_conda_recipe(version: str, path: Path) -> None:
         print(f"[bump] conda recipe: version/python/deps synced ({version})")
 
 
+def _brew_set_source_tag(text: str, version: str) -> tuple[str, bool]:
+    new_text = re.sub(r"(refs/tags/)v[0-9]+\.[0-9]+\.[0-9]+(\.tar\.gz)", rf"\1v{version}\2", text)
+    return new_text, new_text != text
+
+
+def _brew_set_python_dep(text: str, min_py: str | None) -> tuple[str, bool]:
+    if not min_py:
+        return text, False
+    new_text = re.sub(r"depends_on\s+\"python(@[0-9]+\.[0-9]+)?\"", f'depends_on "python@{min_py}"', text)
+    return new_text, new_text != text
+
+
+def _brew_latest_version(name: str) -> str | None:
+    try:
+        with urllib.request.urlopen(f"https://pypi.org/pypi/{name}/json", timeout=10) as resp:
+            info = json.loads(resp.read().decode("utf-8"))
+        return cast(Optional[str], info.get("info", {}).get("version"))
+    except Exception:
+        return None
+
+
+def _brew_update_or_insert_resource(text: str, name: str, sdist_url: str | None, sha256: str | None) -> str:
+    res_block_re = re.compile(rf"(resource\s+\"{re.escape(name)}\"\s+do[\s\S]*?end)", re.S)
+    mblk = res_block_re.search(text)
+    if mblk:
+        block = mblk.group(1)
+        updated = block
+        if sdist_url:
+            updated = re.sub(r'(url\s+")([^"]+)(")', rf"\g<1>{sdist_url}\3", updated)
+        if sha256:
+            updated = re.sub(r'(sha256\s+")([^"]+)(")', rf"\g<1>{sha256}\3", updated)
+        return text.replace(block, updated) if updated != block else text
+    # insert before def install
+    if sdist_url and sha256:
+        insert_re = re.compile(r"^\s*def\s+install\b", re.M)
+        m = insert_re.search(text)
+        if m:
+            block = f'\n  resource "{name}" do\n    url "{sdist_url}"\n    sha256 "{sha256}"\n  end\n'
+            return text[: m.start()] + block + text[m.start() :]
+    return text
+
+
 def _update_brew_formula(version: str, path: Path) -> None:
     try:
         text = path.read_text(encoding="utf-8")
     except FileNotFoundError:
         return
-    # Update tag in GitHub URL: .../refs/tags/vX.Y.Z.tar.gz
-    text2 = re.sub(r"(refs/tags/)v[0-9]+\.[0-9]+\.[0-9]+(\.tar\.gz)", rf"\1v{version}\2", text)
-    changed = text2 != text
-    text = text2
-    # Sync Python dependency to python@X.Y based on requires-python
+
+    text, changed_tag = _brew_set_source_tag(text, version)
+    # Sync python@X.Y from requires-python
     req = _read_requires_python(Path("pyproject.toml"))
     min_py = _min_py_from_requires(req or "") if req else None
-    if min_py:
-        # Homebrew uses python@3.10 style; map X.Y -> python@X.Y
-        text3 = re.sub(r"depends_on\s+\"python(@[0-9]+\.[0-9]+)?\"", f'depends_on "python@{min_py}"', text)
-        if text3 != text:
-            text = text3
-            changed = True
-    if changed:
+    text, changed_py = _brew_set_python_dep(text, min_py)
+    if changed_tag or changed_py:
         path.write_text(text, encoding="utf-8")
         print(f"[bump] brew formula: url/python -> v{version}{' / @' + (min_py or '') if min_py else ''}")
 
-    # Sync pinned dependencies (resource blocks) from pyproject for Brew.
+    # Sync resources for all runtime deps
     deps = _read_pyproject_deps(Path("pyproject.toml"))
     new_all = text
     for name, spec in deps.items():
         if name.lower() == "python":
             continue
-        # Resolve version: pinned or latest on PyPI
-        ver = _pinned_version(spec)
-        sdist_url, sha256 = (None, None)
-        if ver is None:
-            # attempt to fetch latest
-            try:
-                with urllib.request.urlopen(f"https://pypi.org/pypi/{name}/json", timeout=10) as resp:
-                    info = json.loads(resp.read().decode("utf-8"))
-                ver = info.get("info", {}).get("version")
-            except Exception:
-                ver = None
-        if ver:
-            sdist_url, sha256 = _pypi_sdist_info(name, ver)
-        # Ensure a resource block exists/updated
-        res_block_re = re.compile(rf"(resource\s+\"{re.escape(name)}\"\s+do[\s\S]*?end)", re.S)
-        mblk = res_block_re.search(new_all)
-        if mblk:
-            block = mblk.group(1)
-            updated = block
-            if sdist_url:
-                updated = re.sub(r'(url\s+")([^"]+)(")', rf"\g<1>{sdist_url}\3", updated)
-            if sha256:
-                updated = re.sub(r'(sha256\s+")([^"]+)(")', rf"\g<1>{sha256}\3", updated)
-            if updated != block:
-                new_all = new_all.replace(block, updated)
-        else:
-            # insert before def install
-            insert_re = re.compile(r"^\s*def\s+install\b", re.M)
-            m = insert_re.search(new_all)
-            if m and sdist_url and sha256:
-                block = f'\n  resource "{name}" do\n    url "{sdist_url}"\n    sha256 "{sha256}"\n  end\n'
-                new_all = new_all[: m.start()] + block + new_all[m.start() :]
+        ver = _pinned_version(spec) or _brew_latest_version(name)
+        if not ver:
+            continue
+        sdist_url, sha256 = _pypi_sdist_info(name, ver)
+        new_all = _brew_update_or_insert_resource(new_all, name, sdist_url, sha256)
     if new_all != text:
         path.write_text(new_all, encoding="utf-8")
         print("[bump] brew formula: resources synced from pyproject dependencies")
