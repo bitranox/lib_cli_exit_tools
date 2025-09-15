@@ -3,7 +3,7 @@ name = "lib_cli_exit_tools"
 version = "0.1.1"
 description = "CLI exit handling helpers: clean signals, exit codes, and error printing"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.10"
 dependencies = ["click>=8.1"]
 license = { text = "MIT" }
 authors = [{ name = "Robert Nowotny", email = "bitranox@gmail.com" }]
