@@ -8,7 +8,7 @@
 [![PyPI](https://img.shields.io/pypi/v/lib_cli_exit_tools.svg)](https://pypi.org/project/lib_cli_exit_tools/)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/lib_cli_exit_tools.svg)](https://pypi.org/project/lib_cli_exit_tools/)
 [![Code Style: Ruff](https://img.shields.io/badge/Code%20Style-Ruff-46A3FF?logo=ruff&labelColor=000)](https://docs.astral.sh/ruff/)
-[![codecov](https://codecov.io/gh/bitranox/lib_cli_exit_tools/branch/main/graph/badge.svg)](https://codecov.io/gh/bitranox/lib_cli_exit_tools)
+[![codecov](https://codecov.io/gh/bitranox/lib_cli_exit_tools/graph/badge.svg?token=z1D8JSjWEH)](https://codecov.io/gh/bitranox/lib_cli_exit_tools)
 [![QLTY Maintainability](https://img.shields.io/badge/qlty.sh-maintainability-blue)](https://qlty.sh)
 [![QLTY Coverage](https://img.shields.io/badge/qlty.sh-coverage-blue)](https://qlty.sh)
 [![Known Vulnerabilities](https://snyk.io/test/github/bitranox/lib_cli_exit_tools/badge.svg)](https://snyk.io/test/github/bitranox/lib_cli_exit_tools)
