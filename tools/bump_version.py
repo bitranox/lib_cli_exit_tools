@@ -298,10 +298,15 @@ def _update_nix_flake(version: str, path: Path) -> None:
             text = text3b
             changed = True
     if changed:
-        # Also sync propagatedBuildInputs to include all runtime deps
+        # Also sync propagatedBuildInputs in the library package block (not the hatchling vendor)
         deps = _read_pyproject_deps(Path("pyproject.toml"))
         pkgs_list = " ".join(sorted({f"pypkgs.{k.replace('-', '_')}" for k in deps.keys() if k.lower() != "python"}))
-        text = re.sub(r"propagatedBuildInputs\s*=\s*\[[^\]]*\];", f"propagatedBuildInputs = [ {pkgs_list} ];", text, flags=re.S)
+
+        def _update_pkg_block(m: re.Match[str]) -> str:
+            block = m.group(0)
+            return re.sub(r"propagatedBuildInputs\s*=\s*\[[^\]]*\];", f"propagatedBuildInputs = [ {pkgs_list} ];", block, flags=re.S)
+
+        text = re.sub(r"packages\.default\s*=\s*pypkgs\.buildPythonPackage\s*\{[\s\S]*?\}\s*;", _update_pkg_block, text)
         path.write_text(text, encoding="utf-8")
         print(f"[bump] nix flake: version/rev/python/deps -> {version}{' / ' + (min_py or '') if min_py else ''}")
 

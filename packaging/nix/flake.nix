@@ -21,7 +21,13 @@
             url = "https://files.pythonhosted.org/packages/py3/h/hatchling/${pname}-${version}-py3-none-any.whl";
             hash = "sha256-tHlI5F1NlzA0WE3UyznBS2pwInzyh6t+wK15g0CKiCw=";
           };
-          propagatedBuildInputs = [ pypkgs.click ];
+          propagatedBuildInputs = [
+            pypkgs.packaging
+            pypkgs.pathspec
+            pypkgs.pluggy
+            pypkgs."trove-classifiers"
+            pypkgs.editables
+          ];
           doCheck = false;
         };
       in

@@ -10,7 +10,6 @@
 [![Code Style: Ruff](https://img.shields.io/badge/Code%20Style-Ruff-46A3FF?logo=ruff&labelColor=000)](https://docs.astral.sh/ruff/)
 [![codecov](https://codecov.io/gh/bitranox/lib_cli_exit_tools/graph/badge.svg?token=z1D8JSjWEH)](https://codecov.io/gh/bitranox/lib_cli_exit_tools)
 [![Maintainability](https://qlty.sh/gh/bitranox/projects/lib_cli_exit_tools/maintainability.svg)](https://qlty.sh/gh/bitranox/projects/lib_cli_exit_tools)
-[![Code Coverage](https://qlty.sh/gh/bitranox/projects/lib_cli_exit_tools/coverage.svg)](https://qlty.sh/gh/bitranox/projects/lib_cli_exit_tools)
 [![Known Vulnerabilities](https://snyk.io/test/github/bitranox/lib_cli_exit_tools/badge.svg)](https://snyk.io/test/github/bitranox/lib_cli_exit_tools)
 
 Small helpers for robust CLI exit handling:
