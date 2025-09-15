@@ -18,12 +18,14 @@ source:
 
 build:
   noarch: python
-  script: "{{ PYTHON }} -m pip install . -vv"
+  # Use conda-provided build backend and avoid network isolation issues
+  script: "{{ PYTHON }} -m pip install --no-deps --no-build-isolation -vv ."
 
 requirements:
   host:
     - python >=3.12
     - pip
+    - hatchling >=1.25
   run:
     - python >=3.12
     - click >=8.1

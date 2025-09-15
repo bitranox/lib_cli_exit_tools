@@ -6,6 +6,7 @@ PIP ?= pip
 PKG ?= lib_cli_exit_tools
 GIT_REF ?= v0.1.0
 NIX_FLAKE ?= packaging/nix
+HATCHLING_VERSION ?= 1.25.0
 BREW_FORMULA ?= packaging/brew/Formula/lib-cli-exit-tools.rb
 CONDA_RECIPE ?= packaging/conda/recipe
 FAIL_UNDER ?= 85
@@ -142,6 +143,20 @@ build: ## Build wheel/sdist and attempt conda, brew, and nix builds (auto-instal
 	  if [ -n "$$BREW" ]; then $$BREW install --build-from-source $(BREW_FORMULA) || true; fi; \
 	fi
 	@echo "[4/4] Attempting Nix flake build (auto-install if needed)"
+	@# Inline: update vendored hatchling SRI hash (if needed) before nix build
+	@set -e; \
+	HV=$${HATCHLING_VERSION:-1.25.0}; \
+	TMP=$$(mktemp -d); \
+	echo "[nix] Prefetching hatchling $$HV wheel"; \
+	$(PIP) download "hatchling==$$HV" --only-binary=:all: --no-deps -d "$$TMP" >/dev/null 2>&1 || true; \
+	WHEEL=$$(ls -1 "$$TMP"/hatchling-$$HV-*.whl 2>/dev/null | head -n1); \
+		if [ -n "$$WHEEL" ]; then \
+		  SRI=$$($(PY) -c "import base64,hashlib,sys,pathlib; p=sys.argv[1]; h=hashlib.sha256(pathlib.Path(p).read_bytes()).digest(); print('sha256-'+base64.b64encode(h).decode('ascii'))" "$$WHEEL"); \
+	  sed -i.bak -E "s|hash = \"sha256-[A-Za-z0-9+/=]+\";|hash = \"$${SRI}\";|" packaging/nix/flake.nix; \
+	  rm -f packaging/nix/flake.nix.bak; \
+	  echo "[nix] Updated hatchling hash in packaging/nix/flake.nix"; \
+	fi; \
+	rm -rf "$$TMP";
 	@if command -v nix >/dev/null 2>&1; then \
 	  nix build $(NIX_FLAKE)#default -L || echo "nix build failed (ok to skip)"; \
 	else \

@@ -8,7 +8,29 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs { inherit system; };
+        lib = pkgs.lib;
         pypkgs = pkgs.python312Packages;
+
+        # Vendor hatchling>=1.25 from PyPI (wheel) to satisfy PEP 517 build
+        hatchlingVendor = pypkgs.buildPythonPackage rec {
+          pname = "hatchling";
+          version = "1.25.0";
+          format = "wheel"; # install straight from wheel to avoid circular build-backend
+          src = pkgs.fetchPypi {
+            pname = pname;
+            version = version;
+            format = "wheel";
+            hash = "sha256-tHlI5F1NlzA0WE3UyznBS2pwInzyh6t+wK15g0CKiCw=";
+          };
+          propagatedBuildInputs = [
+            pypkgs.packaging
+            pypkgs.pathspec
+            pypkgs.pluggy
+            pypkgs."trove-classifiers"
+            pypkgs.editables
+          ];
+          doCheck = false;
+        };
       in
       {
         packages.default = pypkgs.buildPythonPackage {
@@ -26,9 +48,8 @@
           # };
 
           # Ensure PEP 517 backend is available at required version
-          nativeBuildInputs = [
-            pypkgs.hatchling
-          ];
+          # Ensure PEP 517 backend available at required version (>=1.25)
+          nativeBuildInputs = [ hatchlingVendor ];
           propagatedBuildInputs = [ pypkgs.click ];
 
           meta = with pkgs.lib; {
@@ -43,7 +64,7 @@
         devShells.default = pkgs.mkShell {
           packages = [
             pkgs.python312
-            pypkgs.hatchling
+            hatchlingVendor
             pypkgs.click
             pypkgs.pytest
             pkgs.ruff
