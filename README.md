@@ -99,18 +99,18 @@ pip install .
 
 ### Make Targets
 
-| Target     | Description |
-| ---------- | ----------- |
-| `build`    | Build wheel/sdist and attempt Conda/Brew/Nix builds (auto‑installs missing tools). |
-| `clean`    | Remove caches, coverage, and build artifacts (includes `dist/` and `build/`). |
-| `dev`      | Editable install with dev extras. |
-| `help`     | List all targets with one‑line docs. |
-| `install`  | Editable install (`pip install -e .`). |
-| `version-current` | Print version from pyproject.toml. |
-| `bump`     | Bump version (VERSION=X.Y.Z or PART=major|minor|patch). |
-| `push`     | Commit all changes once and push to GitHub (no CI monitoring). |
-| `run`      | Run module entry: `python -m lib_cli_exit_tools --help`. |
-| `test`     | Lint (ruff), format, type‑check (pyright), pytest + coverage, Codecov upload. |
+| Target            | Description                                                                        |
+|-------------------|------------------------------------------------------------------------------------|
+| `build`           | Build wheel/sdist and attempt Conda/Brew/Nix builds (auto‑installs missing tools). |
+| `clean`           | Remove caches, coverage, and build artifacts (includes `dist/` and `build/`).      |
+| `dev`             | Editable install with dev extras.                                                  |
+| `help`            | List all targets with one‑line docs.                                               |
+| `install`         | Editable install (`pip install -e .`).                                             |
+| `version-current` | Print version from pyproject.toml.                                                 |
+| `bump`            | Bump version (VERSION=X.Y.Z or PART=major                                          |minor|patch). |
+| `push`            | Commit all changes once and push to GitHub (no CI monitoring).                     |
+| `run`             | Run module entry: `python -m lib_cli_exit_tools --help`.                           |
+| `test`            | Lint (ruff), format, type‑check (pyright), pytest + coverage, Codecov upload.      |
 
 #### Target Details
 
