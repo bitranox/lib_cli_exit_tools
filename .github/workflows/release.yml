@@ -3,6 +3,7 @@ name: Release
 on:
   release:
     types: [published]
+  workflow_dispatch: {}
 
 jobs:
   build-and-publish:
@@ -26,7 +27,8 @@ jobs:
           python -m pip install --upgrade pip build
           python -m build
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@v1.10.1
+        # Use the rolling major tag to get latest Twine/standards support (e.g., Core Metadata 2.4)
+        uses: pypa/gh-action-pypi-publish@release/v1
         with:
           password: ${{ secrets.PYPI_API_TOKEN }}
           skip-existing: true

@@ -5,6 +5,7 @@ PY ?= python3
 PIP ?= pip
 PKG ?= lib_cli_exit_tools
 GIT_REF ?= v0.1.0
+REMOTE ?= origin
 NIX_FLAKE ?= packaging/nix
 HATCHLING_VERSION ?= 1.25.0
 BREW_FORMULA ?= packaging/brew/Formula/lib-cli-exit-tools.rb
@@ -16,7 +17,7 @@ FAIL_UNDER ?= 80
 # - off  : never run coverage
 COVERAGE ?= on
 
-.PHONY: help install dev test run clean build push _bootstrap-dev
+.PHONY: help install dev test run clean build push release _bootstrap-dev
 
 help: ## Show help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -128,7 +129,7 @@ push: ## Commit all changes once and push to GitHub (no CI monitoring)
 	else \
 	  git commit -m "chore: update"; \
 	fi; \
-	git push -u origin $$BRANCH || { echo "[push] git push failed"; exit 1; }
+	git push -u $(REMOTE) $$BRANCH || { echo "[push] git push failed"; exit 1; }
 
 build: ## Build wheel/sdist and attempt conda, brew, and nix builds (auto-installs tools if missing)
 	@echo "[1/4] Building wheel/sdist via python -m build"
@@ -194,3 +195,43 @@ build: ## Build wheel/sdist and attempt conda, brew, and nix builds (auto-instal
 	  if [ -z "$$NIX" ] && [ -x /nix/var/nix/profiles/default/bin/nix ]; then NIX=/nix/var/nix/profiles/default/bin/nix; fi; \
 	  if [ -n "$$NIX" ]; then $$NIX build $(NIX_FLAKE)#default -L || true; fi; \
 	fi
+
+release: ## Create and push tag vX.Y.Z from pyproject, then sync packaging and commit
+	@set -euo pipefail; IFS=$$'\n\t'; \
+	VERSION=$$(grep -E '^version\s*=\s*"' pyproject.toml | sed -E 's/.*"([^"]+)".*/\1/'); \
+	echo "[release] Target version $$VERSION"; \
+	# Ensure clean working tree
+	if ! git diff --quiet || ! git diff --cached --quiet; then \
+	  echo "[release] Working tree not clean. Commit or stash changes first."; exit 1; \
+	fi; \
+	# Run verification
+	$(MAKE) test; \
+	BRANCH=$$(git rev-parse --abbrev-ref HEAD); \
+	echo "[release] Pushing branch $$BRANCH to $(REMOTE)"; \
+	git push $(REMOTE) $$BRANCH; \
+	# Create tag if missing
+	if git rev-parse -q --verify "refs/tags/v$$VERSION" >/dev/null; then \
+	  echo "[release] Tag v$$VERSION already exists locally"; \
+	else \
+	  git tag -a "v$$VERSION" -m "Release v$$VERSION"; \
+	fi; \
+	echo "[release] Pushing tag v$$VERSION"; \
+	git push $(REMOTE) "v$$VERSION"; \
+	# Try to sync packaging (tarball hashes) a few times to tolerate propagation delay
+	for i in 1 2 3 4 5; do \
+	  echo "[release] Sync packaging attempt $$i"; \
+	  $(PY) tools/bump_version.py --sync-packaging || true; \
+	  if ! grep -R "<fill-me>" -n packaging >/dev/null 2>&1; then \
+	    break; \
+	  fi; \
+	  sleep 3; \
+	done; \
+	# Commit packaging changes, if any
+	if ! git diff --quiet packaging; then \
+	  git add packaging; \
+	  git commit -m "chore(packaging): sync for v$$VERSION"; \
+	  git push $(REMOTE) $$BRANCH; \
+	else \
+	  echo "[release] No packaging changes to commit"; \
+	fi; \
+	echo "[release] Done: v$$VERSION tagged and pushed."
