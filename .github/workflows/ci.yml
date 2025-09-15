@@ -165,3 +165,56 @@ jobs:
               nbformat.write(nb, f)
           print(f"Executed notebook written to: {out_path}")
           PY
+
+  packaging-consistency:
+    name: Packaging files in sync (on tags)
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Verify packaging matches pyproject
+        run: |
+          python - << 'PY'
+          import re, sys
+          from pathlib import Path
+
+          py = Path('pyproject.toml').read_text(encoding='utf-8')
+          m_ver = re.search(r'^version\s*=\s*"([^"]+)"', py, re.M)
+          m_req = re.search(r'^requires-python\s*=\s*"([^"]+)"', py, re.M)
+          if not (m_ver and m_req):
+            print('pyproject missing version or requires-python'); sys.exit(1)
+          version = m_ver.group(1)
+          requires = m_req.group(1)
+          m_min = re.search(r'>=\s*(3\.[0-9]+)', requires)
+          if not m_min:
+            print('requires-python must be like ">=3.X"'); sys.exit(1)
+          min_py = m_min.group(1)
+          min_digits = min_py.replace('.', '')
+
+          # Conda
+          conda = Path('packaging/conda/recipe/meta.yaml').read_text(encoding='utf-8')
+          if not re.search(r'\{\%\s*set\s+version\s*=\s*"' + re.escape(version) + r'"\s*\%\}', conda):
+            print('conda/meta.yaml: version mismatch'); sys.exit(1)
+          if len(re.findall(r'python\s*>?=\s*' + re.escape(min_py), conda)) < 2:
+            print('conda/meta.yaml: python constraint not aligned (host/run)'); sys.exit(1)
+
+          # Brew
+          brew = Path('packaging/brew/Formula/lib-cli-exit-tools.rb').read_text(encoding='utf-8')
+          if f"refs/tags/v{version}.tar.gz" not in brew:
+            print('brew formula: url tag mismatch'); sys.exit(1)
+          if f'"python@{min_py}"' not in brew:
+            print('brew formula: python dependency not aligned'); sys.exit(1)
+
+          # Nix
+          nix = Path('packaging/nix/flake.nix').read_text(encoding='utf-8')
+          if not re.search(r'pname\s*=\s*"lib_cli_exit_tools";\s*[^}]*?version\s*=\s*"' + re.escape(version) + r'";', nix, re.S):
+            print('nix flake: version mismatch'); sys.exit(1)
+          if not re.search(r'pypkgs\s*=\s*pkgs\.python' + re.escape(min_digits) + r'Packages', nix):
+            print('nix flake: python package set not aligned'); sys.exit(1)
+          if not re.search(r'pkgs\.python' + re.escape(min_digits) + r'\b', nix):
+            print('nix flake: devShell python not aligned'); sys.exit(1)
+          print('Packaging files are consistent with pyproject.')
+          PY

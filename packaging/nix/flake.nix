@@ -9,7 +9,7 @@
       let
         pkgs = import nixpkgs { inherit system; };
         lib = pkgs.lib;
-        pypkgs = pkgs.python312Packages;
+        pypkgs = pkgs.python310Packages;
 
         # Vendor hatchling>=1.25 from PyPI (wheel) to satisfy PEP 517 build
         hatchlingVendor = pypkgs.buildPythonPackage rec {
@@ -21,20 +21,14 @@
             url = "https://files.pythonhosted.org/packages/py3/h/hatchling/${pname}-${version}-py3-none-any.whl";
             hash = "sha256-tHlI5F1NlzA0WE3UyznBS2pwInzyh6t+wK15g0CKiCw=";
           };
-          propagatedBuildInputs = [
-            pypkgs.packaging
-            pypkgs.pathspec
-            pypkgs.pluggy
-            pypkgs."trove-classifiers"
-            pypkgs.editables
-          ];
+          propagatedBuildInputs = [ pypkgs.click ];
           doCheck = false;
         };
       in
       {
         packages.default = pypkgs.buildPythonPackage {
           pname = "lib_cli_exit_tools";
-          version = "0.1.0";
+          version = "0.1.1";
           pyproject = true;
           # Build from the repository root (two levels up from packaging/nix)
           src = ../..;
@@ -42,7 +36,7 @@
           # src = pkgs.fetchFromGitHub {
           #   owner = "bitranox";
           #   repo = "lib_cli_exit_tools";
-          #   rev = "v0.1.0";
+          #   rev = "v0.1.1";
           #   sha256 = "<fill-me>";
           # };
 
@@ -62,7 +56,7 @@
 
         devShells.default = pkgs.mkShell {
           packages = [
-            pkgs.python312
+            pkgs.python310
             hatchlingVendor
             pypkgs.click
             pypkgs.pytest

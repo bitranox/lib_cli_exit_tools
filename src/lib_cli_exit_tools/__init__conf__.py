@@ -81,12 +81,13 @@ def _shell_command() -> str:
     return _DIST_NAME
 
 
-# Public values
+# Public values (resolve metadata once)
+_m = _meta()
 name = _DIST_NAME
-title = _summary(_meta())
+title = _summary(_m)
 version = _version()
-homepage = _home_page(_meta())
-author, author_email = _author(_meta())
+homepage = _home_page(_m)
+author, author_email = _author(_m)
 shell_command = _shell_command()
 
 

@@ -182,6 +182,17 @@ COVERAGE=off make test       # disable coverage locally
 COVERAGE=on make test        # force coverage and generate coverage.xml/codecov.xml
 ```
 
+### Packaging sync (Conda/Brew/Nix)
+
+- `make test` and `make push` automatically align the packaging skeletons in `packaging/` with the current `pyproject.toml`:
+  - Conda: updates `{% set version = "X.Y.Z" %}` and both `python >=X.Y` constraints to match `requires-python`.
+  - Homebrew: updates the source URL tag to `vX.Y.Z` and sets `depends_on "python@X.Y"` to match `requires-python`.
+  - Nix: updates the package `version`, example `rev = "vX.Y.Z"`, and switches `pkgs.pythonXYZPackages` / `pkgs.pythonXYZ` to match the minimum Python version from `requires-python`.
+
+- To run just the sync without bumping versions: `python tools/bump_version.py --sync-packaging`.
+
+- On release tags (`v*.*.*`), CI validates that packaging files are consistent with `pyproject.toml` and will fail if they drift.
+
 ## Versioning & Metadata
 
 - Single source of truth for package metadata is `pyproject.toml` (`[project]`).
@@ -197,7 +208,7 @@ Starter files for package managers live under `packaging/`:
 - Homebrew: `packaging/brew/Formula/lib-cli-exit-tools.rb` (fill sha256 and vendored resources)
 - Nix: `packaging/nix/flake.nix` (use working tree or pin to GitHub rev with sha256)
 
-These are templates; fill placeholders before publishing.
+These are templates; fill placeholders (e.g., sha256) before publishing. Version and Python constraints are auto-synced from `pyproject.toml` by `make test`/`make push` and during version bumps.
 
 ## CI & Publishing
 

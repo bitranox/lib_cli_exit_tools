@@ -46,7 +46,7 @@ def _install_signal_handlers() -> None:
         signal.signal(signal.SIGTERM, _sigterm_handler)
     else:
         # SIGBREAK exists on Windows
-        try:  # pragma: no cover - depends on host OS
+        try:
 
             def _sigbreak_handler(signo: int, frame: FrameType | None) -> None:
                 raise SigBreakError()
@@ -91,13 +91,13 @@ def _handle_exception(e: BaseException) -> int:
     Respects tools.config.traceback and uses tools.print_exception_message.
     """
     if isinstance(e, (SigIntError, KeyboardInterrupt)):
-        click.echo("Abgebrochen (SIGINT).", err=True)
+        click.echo("Aborted (SIGINT).", err=True)
         return 130  # 128 + SIGINT(2)
     if isinstance(e, SigTermError):
-        click.echo("Beendet (SIGTERM/SIGBREAK).", err=True)
+        click.echo("Terminated (SIGTERM/SIGBREAK).", err=True)
         return 143  # 128 + SIGTERM(15)
     if isinstance(e, SigBreakError):  # precise mapping for Windows Ctrl+Break
-        click.echo("Beendet (SIGBREAK).", err=True)
+        click.echo("Terminated (SIGBREAK).", err=True)
         return 149  # 128 + SIGBREAK(21)
 
     # Broken pipe: stay quiet and exit with configured code
@@ -125,7 +125,7 @@ def _handle_exception(e: BaseException) -> int:
 def main(argv: Optional[List[str]] = None) -> int:
     """Entrypoint returning an int exit code.
 
-    Use via `python -m cli_exit_tools` or console script.
+    Use via `python -m lib_cli_exit_tools` or console script.
     """
     _install_signal_handlers()
     try:

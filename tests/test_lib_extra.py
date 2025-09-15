@@ -11,6 +11,14 @@ from lib_cli_exit_tools.lib_cli_exit_tools import (
 )
 
 
+def test_value_error_windows_mapping(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Force windows mapping by monkeypatching os.name used in module
+    import lib_cli_exit_tools.lib_cli_exit_tools as tools
+
+    monkeypatch.setattr(tools.os, "name", "nt", raising=False)
+    assert get_system_exit_code(ValueError("x")) == 87
+
+
 def test_get_system_exit_code_cpe_bad_returncode() -> None:
     e = subprocess.CalledProcessError(returncode="x", cmd=["echo"])  # type: ignore[arg-type]
     assert get_system_exit_code(e) == 1

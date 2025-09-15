@@ -21,6 +21,24 @@ def test_get_system_exit_code_system_exit():
         assert get_system_exit_code(e) == 99
 
 
+def test_get_system_exit_code_system_exit_variants():
+    # None -> 0
+    try:
+        raise SystemExit(None)
+    except SystemExit as e:
+        assert get_system_exit_code(e) == 0
+    # numeric in string -> parsed
+    try:
+        raise SystemExit("2")
+    except SystemExit as e:
+        assert get_system_exit_code(e) == 2
+    # invalid string -> fallback 1
+    try:
+        raise SystemExit("oops")
+    except SystemExit as e:
+        assert get_system_exit_code(e) == 1
+
+
 @pytest.mark.skipif(sys.platform.startswith("win"), reason="POSIX-specific expectations; skip on Windows")
 def test_get_system_exit_code_common_posix():
     try:
@@ -113,6 +131,35 @@ def test_print_exception_message_called_process_error_like():
         out = buf.getvalue()
         assert "STDOUT: out" in out
         assert "STDERR: err" in out
+
+
+def test_print_exception_message_string_output():
+    class E(Exception):
+        stdout = "hello"
+        stderr = "world"
+
+    try:
+        raise E()
+    except Exception:
+        buf = io.StringIO()
+        print_exception_message(trace_back=False, stream=buf)
+        out = buf.getvalue()
+        assert "STDOUT: hello" in out
+        assert "STDERR: world" in out
+
+
+def test_print_exception_message_ignores_non_text_output():
+    class E(Exception):
+        stdout = 123  # type: ignore[assignment]
+        stderr = None
+
+    try:
+        raise E()
+    except Exception:
+        buf = io.StringIO()
+        print_exception_message(trace_back=False, stream=buf)
+        out = buf.getvalue()
+        assert "STDOUT:" not in out
 
 
 def test_flush_streams():

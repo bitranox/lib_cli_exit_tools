@@ -1,5 +1,5 @@
 {% set name = "lib_cli_exit_tools" %}
-{% set version = "0.1.0" %}
+{% set version = "0.1.1" %}
 
 package:
   name: {{ name|lower }}
@@ -23,11 +23,11 @@ build:
 
 requirements:
   host:
-    - python >=3.12
+    - python >=3.10
     - pip
     - hatchling >=1.25
   run:
-    - python >=3.12
+    - python >=3.10
     - click >=8.1
 
 test:

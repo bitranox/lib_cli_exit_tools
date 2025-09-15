@@ -9,13 +9,16 @@ Exposed API:
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import traceback
+from dataclasses import dataclass
 from typing import Any, Literal, Optional, TextIO
 
 
-class _Config(object):
+@dataclass(slots=True)
+class _Config:
     """Runtime configuration for library behavior."""
 
     traceback: bool = False
@@ -29,7 +32,6 @@ class _Config(object):
 config = _Config()
 
 
-# get_system_exit_code{{{
 def get_system_exit_code(exc: BaseException) -> int:
     """
     Return the exit code for linux or Windows os, based on the exception.
@@ -65,7 +67,6 @@ def get_system_exit_code(exc: BaseException) -> int:
     ...     assert get_system_exit_code(my_exc) == 99
 
     """
-    # get_system_exit_code}}}
 
     # Prefer precise sources first: explicit returncodes, signals, winerror/errno
     # subprocess returncode
@@ -122,19 +123,26 @@ def get_system_exit_code(exc: BaseException) -> int:
         RuntimeError: 1,
     }
 
-    # Handle SystemExit
+    # Handle SystemExit robustly
     if isinstance(exc, SystemExit):
-        exit_code = int(exc.args[0])
-        return exit_code
+        code = getattr(exc, "code", None)
+        if isinstance(code, int):
+            return code
+        if code is None:
+            return 0
+        try:
+            return int(str(code))
+        except Exception:
+            return 1
 
     # At this point, if a sysexits mapping is requested, apply it
     if config.exit_code_style == "sysexits":
         return _sysexits_mapping(exc)
 
-    if "posix" in sys.builtin_module_names:
+    if os.name == "posix":
         exceptions = posix_exceptions
     else:
-        exceptions = windows_exceptions  # pragma: no cover
+        exceptions = windows_exceptions
 
     # Handle all other Exceptions
     for exception in exceptions:
@@ -142,7 +150,7 @@ def get_system_exit_code(exc: BaseException) -> int:
             return exceptions[exception]
 
     # this should never happen
-    return 1  # pragma: no cover
+    return 1
 
 
 def _sysexits_mapping(exc: BaseException) -> int:
@@ -181,7 +189,6 @@ def _sysexits_mapping(exc: BaseException) -> int:
     return 1
 
 
-# print_exception_message{{{
 def print_exception_message(trace_back: bool = config.traceback, length_limit: int = 500, stream: Optional[TextIO] = None) -> None:
     """
     Prints the Exception Message to stderr. If trace_back is True, it also prints the traceback information.
@@ -222,7 +229,6 @@ def print_exception_message(trace_back: bool = config.traceback, length_limit: i
     CalledProcessError...
 
     """
-    # print_exception_message}}}
     flush_streams()
 
     if stream is None:
@@ -300,12 +306,20 @@ def _print_output(exc_info: Any, attr: str, stream: Optional[TextIO] = None) -> 
 
     if hasattr(exc_info, attr):
         output = getattr(exc_info, attr)
-        if output is not None:
-            assert isinstance(output, bytes), f"{attr} must be of type bytes"
-            print(f"{attr.upper()}: {output.decode()}", file=stream)
+        if output is None:
+            return
+        text: Optional[str] = None
+        if isinstance(output, bytes):
+            try:
+                text = output.decode("utf-8", errors="replace")
+            except Exception:
+                text = None
+        elif isinstance(output, str):
+            text = output
+        if text is not None:
+            print(f"{attr.upper()}: {text}", file=stream)
 
 
-# flush_streams{{{
 def flush_streams() -> None:
     """
     flush the streams - make sure the output is written early,
@@ -320,12 +334,11 @@ def flush_streams() -> None:
     >>> flush_streams()
 
     """
-    # flush_streams}}}
     try:
         sys.stdout.flush()
-    except Exception:  # pragma: no cover
-        pass  # pragma: no cover
+    except Exception:
+        pass
     try:
         sys.stderr.flush()
-    except Exception:  # pragma: no cover
-        pass  # pragma: no cover
+    except Exception:
+        pass

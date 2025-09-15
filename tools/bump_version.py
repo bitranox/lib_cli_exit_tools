@@ -4,6 +4,9 @@ import argparse
 import datetime as _dt
 import re
 from pathlib import Path
+from typing import Dict, Tuple
+import json
+import urllib.request
 
 
 def parse_args() -> argparse.Namespace:
@@ -11,6 +14,11 @@ def parse_args() -> argparse.Namespace:
     g = p.add_mutually_exclusive_group()
     g.add_argument("--version", dest="version", help="Explicit new version X.Y.Z")
     g.add_argument("--part", choices=["major", "minor", "patch"], default="patch", help="Semver part to bump")
+    p.add_argument(
+        "--sync-packaging",
+        action="store_true",
+        help="Align conda/brew/nix files to current pyproject version and requires-python without changing pyproject or CHANGELOG",
+    )
     p.add_argument("--pyproject", default="pyproject.toml")
     p.add_argument("--changelog", default="CHANGELOG.md")
     return p.parse_args()
@@ -30,9 +38,282 @@ def bump_semver(old: str, part: str) -> str:
     return f"{major}.{minor}.{patch}"
 
 
+def _read_requires_python(pyproject: Path) -> str | None:
+    try:
+        text = pyproject.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return None
+    m = re.search(r"^requires-python\s*=\s*\"([^\"]+)\"", text, re.M)
+    return m.group(1) if m else None
+
+
+def _min_py_from_requires(spec: str) -> str | None:
+    """Extract the minimum X.Y from a requires-python spec like ">=3.10"."""
+    m = re.search(r">=\s*(3\.[0-9]+)", spec)
+    return m.group(1) if m else None
+
+
+def _read_pyproject_deps(pyproject: Path) -> Dict[str, str]:
+    """Read [project].dependencies into a {name_lower: spec} mapping.
+
+    Uses tomllib when available (Py>=3.11). Falls back to a minimal regex parser
+    that looks for a dependencies = ["..."] array.
+    """
+    try:
+        import tomllib  # type: ignore[attr-defined]
+
+        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+        deps = data.get("project", {}).get("dependencies", [])  # type: ignore[assignment]
+        out: Dict[str, str] = {}
+        for d in deps:
+            if not isinstance(d, str):
+                continue
+            name, spec = d, ""
+            # Split at first comparator char
+            for cmp_ in ["==", "===", ">=", "<=", "~=", ">", "<", "!="]:
+                if cmp_ in d:
+                    name, spec = d.split(cmp_, 1)
+                    name = name.strip()
+                    spec = cmp_ + spec.strip()
+                    break
+            out[name.lower()] = spec or ""
+        return out
+    except Exception:
+        text = pyproject.read_text(encoding="utf-8")
+        m = re.search(r"(?ms)^dependencies\s*=\s*\[(.*?)\]", text)
+        if not m:
+            return {}
+        body = m.group(1)
+        items = re.findall(r"\"([^\"]+)\"", body)
+        out: Dict[str, str] = {}
+        for d in items:
+            name, spec = d, ""
+            for cmp_ in ["==", "===", ">=", "<=", "~=", ">", "<", "!="]:
+                if cmp_ in d:
+                    name, spec = d.split(cmp_, 1)
+                    name = name.strip()
+                    spec = cmp_ + spec.strip()
+                    break
+            out[name.lower()] = spec or ""
+        return out
+
+
+def _pinned_version(spec: str) -> str | None:
+    """Return exact version string if spec pins the dependency (== or ===)."""
+    m = re.match(r"===?\s*([0-9][^,; ]*)", spec)
+    return m.group(1) if m else None
+
+
+def _pypi_sdist_info(name: str, version: str) -> Tuple[str | None, str | None]:
+    """Return (sdist_url, sha256) for a PyPI project if available, else (None, None)."""
+    try:
+        url = f"https://pypi.org/pypi/{name}/{version}/json"
+        with urllib.request.urlopen(url, timeout=10) as resp:  # nosec - metadata only
+            data = json.loads(resp.read().decode("utf-8"))
+        for file in data.get("releases", {}).get(version, []):
+            if file.get("packagetype") == "sdist":
+                return file.get("url"), file.get("digests", {}).get("sha256")
+    except Exception:
+        return None, None
+    return None, None
+
+
+def _update_conda_recipe(version: str, path: Path) -> None:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return
+    # Replace Jinja version pin: {% set version = "X.Y.Z" %}
+    pattern = r"(\{\%\s*set\s+version\s*=\s*\")([^\"]+)(\"\s*\%\})"
+
+    def repl(m: re.Match[str]) -> str:
+        return f"{m.group(1)}{version}{m.group(3)}"
+
+    text2 = re.sub(pattern, repl, text)
+    changed = text2 != text
+    text = text2
+    # Sync Python constraint with pyproject requires-python (>=X.Y)
+    req = _read_requires_python(Path("pyproject.toml"))
+    min_py = _min_py_from_requires(req or "") if req else None
+    if min_py:
+        pat = r"(python\s*>=\s*)3\.[0-9]+"
+
+        def _repl_py(m: re.Match[str]) -> str:
+            return f"{m.group(1)}{min_py}"
+
+        text3 = re.sub(pat, _repl_py, text)
+        if text3 != text:
+            text = text3
+            changed = True
+    # Rebuild the run: requirements list from pyproject deps
+    deps = _read_pyproject_deps(Path("pyproject.toml"))
+    lines = text.splitlines(True)
+    # Find 'run:' line indent
+    run_idx = next((i for i, ln in enumerate(lines) if re.match(r"^\s+run:\s*$", ln)), -1)
+    if run_idx != -1:
+        # Determine indentation for list items (two extra spaces under 'run:')
+        m_indent = re.match(r"^(\s*)", lines[run_idx])
+        indent = m_indent.group(1) if m_indent else "  "
+        item_prefix = indent + "  - "
+        # Remove existing run list lines following run_idx
+        j = run_idx + 1
+        while j < len(lines) and re.match(rf"^{re.escape(indent)}\s*-\s*", lines[j]):
+            j += 1
+        # Build new run list
+        new_items: list[str] = []
+        if min_py:
+            new_items.append(f"{item_prefix}python >={min_py}\n")
+        else:
+            new_items.append(f"{item_prefix}python\n")
+        for name, spec in sorted(deps.items()):
+            if name.lower() == "python":
+                continue
+            entry = name
+            if spec:
+                entry += f" {spec}"
+            new_items.append(f"{item_prefix}{entry}\n")
+        lines[run_idx + 1 : j] = new_items[:]
+        new_text = "".join(lines)
+        if new_text != text:
+            text = new_text
+            changed = True
+    if changed:
+        path.write_text(text, encoding="utf-8")
+        print(f"[bump] conda recipe: version/python/deps synced ({version})")
+
+
+def _update_brew_formula(version: str, path: Path) -> None:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return
+    # Update tag in GitHub URL: .../refs/tags/vX.Y.Z.tar.gz
+    text2 = re.sub(r"(refs/tags/)v[0-9]+\.[0-9]+\.[0-9]+(\.tar\.gz)", rf"\1v{version}\2", text)
+    changed = text2 != text
+    text = text2
+    # Sync Python dependency to python@X.Y based on requires-python
+    req = _read_requires_python(Path("pyproject.toml"))
+    min_py = _min_py_from_requires(req or "") if req else None
+    if min_py:
+        # Homebrew uses python@3.10 style; map X.Y -> python@X.Y
+        text3 = re.sub(r"depends_on\s+\"python(@[0-9]+\.[0-9]+)?\"", f'depends_on "python@{min_py}"', text)
+        if text3 != text:
+            text = text3
+            changed = True
+    if changed:
+        path.write_text(text, encoding="utf-8")
+        print(f"[bump] brew formula: url/python -> v{version}{' / @' + (min_py or '') if min_py else ''}")
+
+    # Sync pinned dependencies (resource blocks) from pyproject for Brew.
+    deps = _read_pyproject_deps(Path("pyproject.toml"))
+    new_all = text
+    for name, spec in deps.items():
+        if name.lower() == "python":
+            continue
+        # Resolve version: pinned or latest on PyPI
+        ver = _pinned_version(spec)
+        sdist_url, sha256 = (None, None)
+        if ver is None:
+            # attempt to fetch latest
+            try:
+                with urllib.request.urlopen(f"https://pypi.org/pypi/{name}/json", timeout=10) as resp:
+                    info = json.loads(resp.read().decode("utf-8"))
+                ver = info.get("info", {}).get("version")
+            except Exception:
+                ver = None
+        if ver:
+            sdist_url, sha256 = _pypi_sdist_info(name, ver)
+        # Ensure a resource block exists/updated
+        res_block_re = re.compile(rf"(resource\s+\"{re.escape(name)}\"\s+do[\s\S]*?end)", re.S)
+        mblk = res_block_re.search(new_all)
+        if mblk:
+            block = mblk.group(1)
+            updated = block
+            if sdist_url:
+                updated = re.sub(r'(url\s+")([^"]+)(")', rf"\g<1>{sdist_url}\3", updated)
+            if sha256:
+                updated = re.sub(r'(sha256\s+")([^"]+)(")', rf"\g<1>{sha256}\3", updated)
+            if updated != block:
+                new_all = new_all.replace(block, updated)
+        else:
+            # insert before def install
+            insert_re = re.compile(r"^\s*def\s+install\b", re.M)
+            m = insert_re.search(new_all)
+            if m and sdist_url and sha256:
+                block = f'\n  resource "{name}" do\n    url "{sdist_url}"\n    sha256 "{sha256}"\n  end\n'
+                new_all = new_all[: m.start()] + block + new_all[m.start() :]
+    if new_all != text:
+        path.write_text(new_all, encoding="utf-8")
+        print("[bump] brew formula: resources synced from pyproject dependencies")
+
+
+def _update_nix_flake(version: str, path: Path) -> None:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return
+
+    # Replace version = "X.Y.Z";
+    # Update package block version only for pname = "lib_cli_exit_tools"
+    def repl_pkg_block(m: re.Match[str]) -> str:
+        return f"{m.group(1)}{version}{m.group(3)}"
+
+    t1 = re.sub(
+        r"(pname\s*=\s*\"lib_cli_exit_tools\";\s*[^}]*?\bversion\s*=\s*\")(\d+\.\d+\.\d+)(\";)",
+        repl_pkg_block,
+        text,
+        flags=re.S,
+    )
+    # Replace example rev = "vX.Y.Z"
+    t2 = re.sub(r"(rev\s*=\s*\")v[0-9]+\.[0-9]+\.[0-9]+(\")", rf"\1v{version}\2", t1)
+    changed = t2 != text
+    text = t2
+    # Sync python package set (python312Packages -> python310Packages for >=3.10) and interpreter in devShell
+    req = _read_requires_python(Path("pyproject.toml"))
+    min_py = _min_py_from_requires(req or "") if req else None
+    if min_py:
+        digits = min_py.replace(".", "")  # e.g., 3.10 -> 310
+
+        # pypkgs line
+        def repl_pypkgs(m: re.Match[str]) -> str:
+            return f"{m.group(1)}{digits}{m.group(3)}"
+
+        text3 = re.sub(r"(pypkgs\s*=\s*pkgs\.python)([0-9]{3})(Packages)", repl_pypkgs, text)
+
+        # devShell interpreter entries
+        def repl_dev_python(m: re.Match[str]) -> str:
+            return f"{m.group(1)}{digits}"
+
+        text3b = re.sub(r"(pkgs\.python)([0-9]{3})\b", repl_dev_python, text3)
+        if text3b != text:
+            text = text3b
+            changed = True
+    if changed:
+        # Also sync propagatedBuildInputs to include all runtime deps
+        deps = _read_pyproject_deps(Path("pyproject.toml"))
+        pkgs_list = " ".join(sorted({f"pypkgs.{k.replace('-', '_')}" for k in deps.keys() if k.lower() != "python"}))
+        text = re.sub(r"propagatedBuildInputs\s*=\s*\[[^\]]*\];", f"propagatedBuildInputs = [ {pkgs_list} ];", text, flags=re.S)
+        path.write_text(text, encoding="utf-8")
+        print(f"[bump] nix flake: version/rev/python/deps -> {version}{' / ' + (min_py or '') if min_py else ''}")
+
+
 def main() -> int:
     ns = parse_args()
     py = Path(ns.pyproject)
+
+    # Sync-only mode: read current pyproject values and align packaging; no edits to pyproject/CHANGELOG
+    if ns.sync_packaging:
+        text = py.read_text(encoding="utf-8")
+        m = re.search(r"^version\s*=\s*\"([^\"]+)\"", text, re.M)
+        if not m:
+            raise SystemExit("version not found in pyproject.toml")
+        target = m.group(1)
+        _update_conda_recipe(target, Path("packaging/conda/recipe/meta.yaml"))
+        _update_brew_formula(target, Path("packaging/brew/Formula/lib-cli-exit-tools.rb"))
+        _update_nix_flake(target, Path("packaging/nix/flake.nix"))
+        return 0
+
+    # Normal bump flow
     cl = Path(ns.changelog)
     text = py.read_text(encoding="utf-8")
     m = re.search(r"^version\s*=\s*\"([^\"]+)\"", text, re.M)
@@ -56,6 +337,11 @@ def main() -> int:
     else:
         cl.write_text("# Changelog\n\n" + entry, encoding="utf-8")
     print(f"[bump] CHANGELOG.md: inserted section for {target}")
+
+    # Also bump packaging skeletons if present
+    _update_conda_recipe(target, Path("packaging/conda/recipe/meta.yaml"))
+    _update_brew_formula(target, Path("packaging/brew/Formula/lib-cli-exit-tools.rb"))
+    _update_nix_flake(target, Path("packaging/nix/flake.nix"))
     return 0
 
 

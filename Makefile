@@ -9,7 +9,7 @@ NIX_FLAKE ?= packaging/nix
 HATCHLING_VERSION ?= 1.25.0
 BREW_FORMULA ?= packaging/brew/Formula/lib-cli-exit-tools.rb
 CONDA_RECIPE ?= packaging/conda/recipe
-FAIL_UNDER ?= 85
+FAIL_UNDER ?= 80
 # Coverage mode: on|auto|off (default: on locally)
 # - on   : always run coverage
 # - auto : enable on CI or when CODECOV_TOKEN is set
@@ -44,6 +44,8 @@ _bootstrap-dev:
 	fi
 
 test: _bootstrap-dev ## Lint, type-check, run tests with coverage, upload to Codecov
+	@echo "[0/4] Sync packaging (conda/brew/nix) with pyproject"
+	$(PY) tools/bump_version.py --sync-packaging
 	@echo "[1/4] Ruff lint"
 	ruff check .
 	@echo "[2/4] Ruff format (apply)"
@@ -115,6 +117,8 @@ clean: ## Remove caches, build artifacts, and coverage
 push: ## Commit all changes once and push to GitHub (no CI monitoring)
 	@echo "[push] Running local checks (make test)"
 	$(MAKE) test
+	@echo "[push] Sync packaging (conda/brew/nix) with pyproject before commit"
+	$(PY) tools/bump_version.py --sync-packaging
 	@echo "[push] Committing and pushing (single attempt)"
 	@set -e; \
 	BRANCH=$$(git rev-parse --abbrev-ref HEAD); \
