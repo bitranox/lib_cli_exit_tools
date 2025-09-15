@@ -196,39 +196,41 @@ build: ## Build wheel/sdist and attempt conda, brew, and nix builds (auto-instal
 	  if [ -n "$$NIX" ]; then $$NIX build $(NIX_FLAKE)#default -L || true; fi; \
 	fi
 
+
 release: ## Create and push tag vX.Y.Z from pyproject, create GitHub release (if gh present), then sync packaging
 	@set -euo pipefail; IFS=$$'\n\t'; \
-	VERSION=$$($(PY) -c "import re, pathlib, sys; t=pathlib.Path('pyproject.toml').read_text(encoding='utf-8'); m=re.search(r'(?m)^version\\s*=\\s*\"([0-9]+(?:\\.[0-9]+){2})\"', t); sys.stdout.write(m.group(1) if m else '')"); \
-	VERSION=$$(printf '%s' "$$VERSION" | tr -d '\r\n'); \
-	if [ -z "$$VERSION" ]; then echo "[release] Could not read version from pyproject.toml"; exit 1; fi; \
-	case "$$VERSION" in *[!0-9.]*|*.*.*.*) echo "[release] Unexpected version format: '$$VERSION' (expect X.Y.Z)"; exit 1;; esac; \
-	echo "[release] Target version $$VERSION"; \
+	REL_VERSION=$$($(PY) -c "import re, pathlib, sys; t=pathlib.Path('pyproject.toml').read_text(encoding='utf-8'); m=re.search(r'(?m)^version\\s*=\\s*\"([0-9]+(?:\\.[0-9]+){2})\"', t); sys.stdout.write(m.group(1) if m else '')"); \
+	REL_VERSION=$$(printf '%s' "$$REL_VERSION" | tr -d '\r\n'); \
+	if [ -z "$$REL_VERSION" ]; then echo "[release] Could not read version from pyproject.toml"; exit 1; fi; \
+	case "$$REL_VERSION" in *[!0-9.]*|*.*.*.*) echo "[release] Unexpected version format: '$$REL_VERSION' (expect X.Y.Z)"; exit 1;; esac; \
+	echo "[release] Target version $$REL_VERSION"; \
 	# Ensure clean working tree
 	if ! git diff --quiet || ! git diff --cached --quiet; then \
 	  echo "[release] Working tree not clean. Commit or stash changes first."; exit 1; \
 	fi; \
 	# Run verification
 	$(MAKE) test; \
-	# Remove stray local 'v' tag if present (past mistakes)
+	# Remove stray 'v' tags (local and remote) from past mistakes
 	git tag -d v >/dev/null 2>&1 || true; \
+	git push $(REMOTE) :refs/tags/v >/dev/null 2>&1 || true; \
 	BRANCH=$$(git rev-parse --abbrev-ref HEAD); \
 	echo "[release] Pushing branch $$BRANCH to $(REMOTE)"; \
 	git push $(REMOTE) $$BRANCH; \
 	# Create tag if missing
-	if git rev-parse -q --verify "refs/tags/v$$VERSION" >/dev/null; then \
-	  echo "[release] Tag v$$VERSION already exists locally"; \
+	if git rev-parse -q --verify "refs/tags/v$$REL_VERSION" >/dev/null; then \
+	  echo "[release] Tag v$$REL_VERSION already exists locally"; \
 	else \
-	  git tag -a "v$$VERSION" -m "Release v$$VERSION"; \
+	  git tag -a "v$$REL_VERSION" -m "Release v$$REL_VERSION"; \
 	fi; \
-	echo "[release] Pushing tag v$$VERSION"; \
-	git push $(REMOTE) "v$$VERSION"; \
+	echo "[release] Pushing tag v$$REL_VERSION"; \
+	git push $(REMOTE) "v$$REL_VERSION"; \
 	# Create GitHub release if gh CLI is available
 	if command -v gh >/dev/null 2>&1; then \
-	  if ! gh release view "v$$VERSION" >/dev/null 2>&1; then \
-	    echo "[release] Creating GitHub release v$$VERSION"; \
-	    gh release create "v$$VERSION" -t "v$$VERSION" -n "Release v$$VERSION" || true; \
+	  if ! gh release view "v$$REL_VERSION" >/dev/null 2>&1; then \
+	    echo "[release] Creating GitHub release v$$REL_VERSION"; \
+	    gh release create "v$$REL_VERSION" -t "v$$REL_VERSION" -n "Release v$$REL_VERSION" || true; \
 	  else \
-	    echo "[release] GitHub release v$$VERSION already exists"; \
+	    echo "[release] GitHub release v$$REL_VERSION already exists"; \
 	  fi; \
 	else \
 	  echo "[release] gh CLI not found; skipping GitHub release creation"; \
@@ -245,9 +247,9 @@ release: ## Create and push tag vX.Y.Z from pyproject, create GitHub release (if
 	# Commit packaging changes, if any
 	if ! git diff --quiet packaging; then \
 	  git add packaging; \
-	  git commit -m "chore(packaging): sync for v$$VERSION"; \
+	  git commit -m "chore(packaging): sync for v$$REL_VERSION"; \
 	  git push $(REMOTE) $$BRANCH; \
 	else \
 	  echo "[release] No packaging changes to commit"; \
 	fi; \
-	echo "[release] Done: v$$VERSION tagged and pushed."
+	echo "[release] Done: v$$REL_VERSION tagged and pushed."
