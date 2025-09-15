@@ -327,6 +327,7 @@ class ParamScreen(Screen[Dict[str, str] | None]):
         self._preset = preset
         self._inputs: Dict[str, Input | Select[str]] = {}
         self._error: Static | None = None
+        self._ok_button: Button | None = None
 
     def compose(self) -> ComposeResult:  # type: ignore[override]
         with Container(id="backdrop"):
