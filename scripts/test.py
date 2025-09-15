@@ -13,23 +13,33 @@ from scripts._utils import bootstrap_dev, cmd_exists, run, sync_packaging  # noq
 
 @click.command(help="Run lints, type-check, tests with coverage, and Codecov upload if configured")
 @click.option("--coverage", type=click.Choice(["on", "auto", "off"]), default="on")
-def main(coverage: str) -> None:
+@click.option("--verbose", "-v", is_flag=True, help="Print executed commands before running them")
+def main(coverage: str, verbose: bool) -> None:
+    def _run(cmd: list[str] | str, *, env: dict[str, str] | None = None, check: bool = True) -> None:
+        display = cmd if isinstance(cmd, str) else " ".join(cmd)
+        if verbose:
+            click.echo(f"  $ {display}")
+            if env:
+                env_view = " ".join(f"{k}={v}" for k, v in env.items())
+                if env_view:
+                    click.echo(f"    env {env_view}")
+        run(cmd, env=env, check=check)  # type: ignore[arg-type]
+
     bootstrap_dev()
 
     click.echo("[0/4] Sync packaging (conda/brew/nix) with pyproject")
     sync_packaging()
 
     click.echo("[1/4] Ruff lint")
-    run(["ruff", "check", "."])  # type: ignore[list-item]
+    _run(["ruff", "check", "."])  # type: ignore[list-item]
 
     click.echo("[2/4] Ruff format (apply)")
-    run(["ruff", "format", "."])  # type: ignore[list-item]
+    _run(["ruff", "format", "."])  # type: ignore[list-item]
 
     click.echo("[3/4] Pyright type-check")
-    run(["pyright"])  # type: ignore[list-item]
+    _run(["pyright"])  # type: ignore[list-item]
 
     click.echo("[4/4] Pytest with coverage")
-    # remove old coverage
     for f in (".coverage", "coverage.xml"):
         try:
             Path(f).unlink()
@@ -42,7 +52,7 @@ def main(coverage: str) -> None:
             cov_file = Path(tmp) / ".coverage"
             click.echo(f"[coverage] file={cov_file}")
             env = os.environ | {"COVERAGE_FILE": str(cov_file)}
-            run(
+            _run(
                 [
                     "python",
                     "-m",
@@ -57,17 +67,15 @@ def main(coverage: str) -> None:
             )
     else:
         click.echo("[coverage] disabled (set --coverage=on to force)")
-        run(["python", "-m", "pytest", "-q"])  # type: ignore[list-item]
+        _run(["python", "-m", "pytest", "-q"])  # type: ignore[list-item]
 
-    # Upload coverage to Codecov if present
     if Path("coverage.xml").exists():
         click.echo("Uploading coverage to Codecov")
         if cmd_exists("codecov"):
             version = run(["python", "-c", "import platform; print(platform.python_version())"]).out.strip()
-            run(["codecov", "-f", "coverage.xml", "-F", "local", "-n", f"local-$(uname)-{version}"], check=False)
+            _run(["codecov", "-f", "coverage.xml", "-F", "local", "-n", f"local-$(uname)-{version}"], check=False)
         else:
-            # fallback bash uploader
-            run(
+            _run(
                 [
                     "bash",
                     "-lc",

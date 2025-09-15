@@ -61,7 +61,7 @@ target-version = "py313"
 [tool.pyright]
 typeCheckingMode = "strict"
 exclude = [
-  "docs",
+  "scripts",
 ]
 
 [tool.pytest.ini_options]

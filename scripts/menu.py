@@ -4,36 +4,43 @@ import asyncio
 import os
 import signal
 from dataclasses import dataclass
-from typing import Callable, Dict, Optional
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
 import contextlib
 
 from rich.text import Text
 
-try:
-    from textual import events  # pyright: ignore[reportMissingImports]
-    from textual.app import App, ComposeResult  # pyright: ignore[reportMissingImports]
-    from textual.containers import Container, Horizontal, Vertical  # pyright: ignore[reportMissingImports]
-    from textual.reactive import reactive  # pyright: ignore[reportMissingImports]
-    from textual.screen import Screen  # pyright: ignore[reportMissingImports]
-    from textual.widgets import (  # pyright: ignore[reportMissingImports]
-        Button,
-        Footer,
-        Input,
-        Label,
-        ListItem,
-        ListView,
-        RichLog,
-        Select,
-        Static,
-    )
-except Exception as exc:  # pragma: no cover - textual import errors surface clearly
-    import sys
-    import traceback
+if TYPE_CHECKING:
+    events = Any  # type: ignore
+    App = ComposeResult = Container = Horizontal = Vertical = Screen = ListView = ListItem = Label = Input = Button = Static = Select = RichLog = Any  # type: ignore
 
-    print("[menu-tui] Failed to import Textual components:", file=sys.stderr)
-    traceback.print_exc()
-    raise SystemExit("textual is not installed or incompatible in this environment. Install dev extras: pip install -e .[dev]") from exc
+    def reactive(value: Any) -> Any:  # type: ignore
+        ...
+else:  # pragma: no cover
+    try:
+        from textual import events
+        from textual.app import App, ComposeResult
+        from textual.containers import Container, Horizontal, Vertical
+        from textual.reactive import reactive
+        from textual.screen import Screen
+        from textual.widgets import (
+            Button,
+            Footer,
+            Input,
+            Label,
+            ListItem,
+            ListView,
+            RichLog,
+            Select,
+            Static,
+        )
+    except Exception as exc:  # pragma: no cover - textual import errors surface clearly
+        import sys
+        import traceback
+
+        print("[menu-tui] Failed to import Textual components:", file=sys.stderr)
+        traceback.print_exc()
+        raise SystemExit("textual is not installed or incompatible in this environment. Install dev extras: pip install -e .[dev]") from exc
 
 
 @dataclass(slots=True)
