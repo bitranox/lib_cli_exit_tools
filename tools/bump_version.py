@@ -4,9 +4,18 @@ import argparse
 import datetime as _dt
 import re
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Any, Dict, Tuple, cast
 import json
 import urllib.request
+
+# Optional TOML parser for Python < 3.11 support during type checking
+try:  # pragma: no cover - import resolution
+    import tomllib as _tomllib  # type: ignore[attr-defined]
+except Exception:  # pragma: no cover - best-effort fallback
+    try:
+        import tomli as _tomllib  # type: ignore
+    except Exception:  # noqa: PLC1901
+        _tomllib = None  # type: ignore[assignment]
 
 
 def parse_args() -> argparse.Namespace:
@@ -60,10 +69,10 @@ def _read_pyproject_deps(pyproject: Path) -> Dict[str, str]:
     that looks for a dependencies = ["..."] array.
     """
     try:
-        import tomllib  # type: ignore[attr-defined]
-
-        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
-        deps = data.get("project", {}).get("dependencies", [])  # type: ignore[assignment]
+        if _tomllib is None:
+            raise RuntimeError("tomllib not available")
+        data = cast(dict[str, Any], cast(Any, _tomllib).loads(pyproject.read_text(encoding="utf-8")))
+        deps = cast(list[Any], data.get("project", {}).get("dependencies", []))
         out: Dict[str, str] = {}
         for d in deps:
             if not isinstance(d, str):
