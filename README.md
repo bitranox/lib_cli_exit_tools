@@ -98,22 +98,25 @@ pip install .
 
 ### Make Targets
 
-| Target            | Description                                                                        |
-|-------------------|------------------------------------------------------------------------------------|
-| `build`           | Build wheel/sdist and attempt Conda/Brew/Nix builds (auto‑installs missing tools). |
-| `clean`           | Remove caches, coverage, and build artifacts (includes `dist/` and `build/`).      |
-| `dev`             | Editable install with dev extras.                                                  |
-| `help`            | List all targets with one‑line docs.                                               |
-| `install`         | Editable install (`pip install -e .`).                                             |
-| `version-current` | Print version from pyproject.toml.                                                 |
-| `bump`            | Bump version (VERSION=X.Y.Z or PART=major                                          |minor|patch). |
-| `push`            | Commit all changes once and push to GitHub (no CI monitoring).                     |
-| `run`             | Run module entry: `python -m lib_cli_exit_tools --help`.                           |
-| `test`            | Lint (ruff), format, type‑check (pyright), pytest + coverage, Codecov upload.      |
+| Target            | Description                                                                                |
+|-------------------|--------------------------------------------------------------------------------------------|
+| `help`            | Show help                                                                                  |
+| `install`         | Install package editable                                                                   |
+| `dev`             | Install package with dev extras                                                            |
+| `test`            | Lint, type-check, run tests with coverage, upload to Codecov                               |
+| `run`             | Run module CLI (requires dev install or src on PYTHONPATH)                                 |
+| `version-current` | Print current version from pyproject.toml                                                  |
+| `bump`            | Bump version: VERSION=X.Y.Z or PART=major                                                  |minor|patch (default: patch); updates pyproject.toml and CHANGELOG.md |
+| `bump-patch`      | Bump patch version (X.Y.Z -> X.Y.(Z+1))                                                    |
+| `bump-minor`      | Bump minor version (X.Y.Z -> X.(Y+1).0)                                                    |
+| `bump-major`      | Bump major version ((X+1).0.0)                                                             |
+| `clean`           | Remove caches, build artifacts, and coverage                                               |
+| `push`            | Commit all changes once and push to GitHub (no CI monitoring)                              |
+| `build`           | Build wheel/sdist and attempt conda, brew, and nix builds (auto-installs tools if missing) |
 
 #### Target Details
 
-- `test`: single entry point for local CI — runs ruff lint + format check, pyright, pytest with coverage (enabled by default), and uploads coverage to Codecov if configured (reads `.env`).
+- `test`: single entry point for local CI — runs ruff lint + format check, pyright, pytest (including doctests) with coverage (enabled by default), and uploads coverage to Codecov if configured (reads `.env`).
 - Auto‑bootstrap: `make test` will try to install dev tools (`pip install -e .[dev]`) if `ruff`/`pyright`/`pytest` are missing. Set `SKIP_BOOTSTRAP=1` to skip this behavior.
 - `build`: convenient builder — creates Python wheel/sdist, then attempts Conda, Homebrew, and Nix builds. It auto‑installs missing tools (Miniforge, Homebrew, Nix) when needed.
 - `install`/`dev`/`user-install`: common install flows for editable or per‑user installs.

@@ -60,6 +60,10 @@ target-version = "py313"
 [tool.pyright]
 typeCheckingMode = "strict"
 
+[tool.pytest.ini_options]
+addopts = ["--doctest-modules"]
+doctest_optionflags = ["ELLIPSIS", "NORMALIZE_WHITESPACE"]
+
 [tool.coverage.run]
 branch = true
 parallel = false

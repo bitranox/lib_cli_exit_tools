@@ -56,15 +56,25 @@ def get_system_exit_code(exc: BaseException) -> int:
     >>> try:
     ...     raise RuntimeError()
     ... except RuntimeError as my_exc:
-    ...     assert get_system_exit_code(my_exc) == 1
+    ...     get_system_exit_code(my_exc)
+    1
+    >>> try:
+    ...     raise RuntimeError()
+    ... except RuntimeError as my_exc:
     ...     setattr(my_exc, 'winerror', 42)
-    ...     assert get_system_exit_code(my_exc) == 42
+    ...     get_system_exit_code(my_exc)
+    42
+    >>> try:
+    ...     raise RuntimeError()
+    ... except RuntimeError as my_exc:
     ...     setattr(my_exc, 'winerror', None)
-    ...     assert get_system_exit_code(my_exc) == 1
+    ...     get_system_exit_code(my_exc)
+    1
     >>> try:
     ...     exit(99)
     ... except SystemExit as my_exc:
-    ...     assert get_system_exit_code(my_exc) == 99
+    ...     get_system_exit_code(my_exc)
+    99
 
     """
 
@@ -220,7 +230,7 @@ def print_exception_message(trace_back: bool = config.traceback, length_limit: i
     >>> # test with subprocess to get stdout, stderr
     >>> import subprocess
     >>> try:
-    ...     discard=subprocess.run('unknown_command_test2', shell=True, check=True)
+    ...     discard=subprocess.run('unknown_command_test2_this_should_fail', shell=True, check=True)
     ... except subprocess.CalledProcessError:
     ...     print_exception_message(False, stream=sys.stdout)
     ...     print_exception_message(True, stream=sys.stdout)
