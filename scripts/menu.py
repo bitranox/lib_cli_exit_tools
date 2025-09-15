@@ -11,12 +11,12 @@ import contextlib
 from rich.text import Text
 
 try:
-    from textual import events
-    from textual.app import App, ComposeResult
-    from textual.containers import Container, Horizontal, Vertical
-    from textual.reactive import reactive
-    from textual.screen import Screen
-    from textual.widgets import (
+    from textual import events  # pyright: ignore[reportMissingImports]
+    from textual.app import App, ComposeResult  # pyright: ignore[reportMissingImports]
+    from textual.containers import Container, Horizontal, Vertical  # pyright: ignore[reportMissingImports]
+    from textual.reactive import reactive  # pyright: ignore[reportMissingImports]
+    from textual.screen import Screen  # pyright: ignore[reportMissingImports]
+    from textual.widgets import (  # pyright: ignore[reportMissingImports]
         Button,
         Footer,
         Input,
@@ -353,11 +353,13 @@ class ParamScreen(Screen[Dict[str, str] | None]):
                     self._inputs[param.name] = widget
                     yield widget
                 with Horizontal(id="buttons"):
-                    yield Button("OK", id="ok-btn")
+                    ok_btn = Button("OK", id="ok-btn")
+                    self._ok_button = ok_btn
+                    yield ok_btn
         yield Footer()
 
     def on_mount(self) -> None:  # type: ignore[override]
-        self._focus_first_input()
+        self._focus_ok_button()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:  # type: ignore[override]
         if event.button.id == "ok-btn":
@@ -374,6 +376,10 @@ class ParamScreen(Screen[Dict[str, str] | None]):
         for widget in self._inputs.values():
             widget.focus()
             return
+
+    def _focus_ok_button(self) -> None:
+        if self._ok_button is not None:
+            self._ok_button.focus()
 
     def _submit(self) -> None:
         values, error = self._gather_values()
