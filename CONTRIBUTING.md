@@ -28,7 +28,7 @@ Thanks for helping improve lib_cli_exit_tools! This guide keeps changes small, s
     - Homebrew: ensures a `resource "<dep>"` for each dep; if pinned, uses that version; otherwise pins to the latest PyPI release, updating `url` + `sha256`.
     - Nix: updates the package version, `pkgs.pythonXYZPackages`/`pkgs.pythonXYZ` to match the min Python, and `propagatedBuildInputs` to include all deps as `pypkgs.<name>`.
 - Network note: Homebrew resource updates fetch PyPI metadata; if offline, those updates may be skipped.
-- If packaging drifts, run: `python tools/bump_version.py --sync-packaging`.
+- If packaging drifts, run: `python scripts/bump_version.py --sync-packaging`.
 - CI enforces consistency on tags via a `packaging-consistency` job.
 
 ## 5) Tests & Style

@@ -20,9 +20,9 @@ ignore:
   - "tests/**"
   - "packaging/**"
   - "**/__init__conf__.py"
+  - "scripts/**"
 
 comment:
   layout: "reach, diff, flags, files"
   behavior: default
   require_changes: false
-

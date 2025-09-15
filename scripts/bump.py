@@ -14,7 +14,7 @@ from scripts._utils import run  # noqa: E402
 @click.option("--pyproject", type=click.Path(path_type=Path), default=Path("pyproject.toml"))
 @click.option("--changelog", type=click.Path(path_type=Path), default=Path("CHANGELOG.md"))
 def main(version_: str | None, part: str | None, pyproject: Path, changelog: Path) -> None:
-    args = [sys.executable, "tools/bump_version.py"]
+    args = [sys.executable, "scripts/bump_version.py"]
     if version_:
         args += ["--version", version_]
     else:

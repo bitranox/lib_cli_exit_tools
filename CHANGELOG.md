@@ -16,7 +16,7 @@
 
 ### Added
 - CI job to execute Jupyter notebook on Python 3.10 (installs ipykernel, normalizes notebook IDs) and a tag‑time packaging‑consistency check.
-- Packaging auto‑sync: `make test`, `make push`, and the bump script now align Conda/Brew/Nix files to `pyproject.toml` version, `requires-python`, and runtime deps. Homebrew resources are updated (URL + sha256) using PyPI metadata. A sync‑only mode is available via `python tools/bump_version.py --sync-packaging`.
+- Packaging auto‑sync: `make test`, `make push`, and the bump script now align Conda/Brew/Nix files to `pyproject.toml` version, `requires-python`, and runtime deps. Homebrew resources are updated (URL + sha256) using PyPI metadata. A sync‑only mode is available via `python scripts/bump_version.py --sync-packaging`.
 - Tests covering SystemExit variants, tolerant output printing, English CLI messages, and Windows mapping via monkeypatched `os.name`.
 
 ### Changed

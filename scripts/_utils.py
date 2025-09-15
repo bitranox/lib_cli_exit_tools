@@ -49,7 +49,7 @@ def cmd_exists(name: str) -> bool:
 
 def read_version_from_pyproject(pyproject: Path = Path("pyproject.toml")) -> str:
     try:
-        import tomllib  # pyright: ignore[reportMissingImports]
+        import tomllib  # pyright: ignore[reportMissingImports, reportMissingTypeStubs]
 
         data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
         version = str(data.get("project", {}).get("version", ""))
@@ -108,7 +108,7 @@ def gh_release_edit(tag: str, title: str, body: str) -> None:
 
 
 def sync_packaging() -> None:
-    run([sys.executable, "tools/bump_version.py", "--sync-packaging"], check=False)
+    run([sys.executable, "scripts/bump_version.py", "--sync-packaging"], check=False)
 
 
 def bootstrap_dev() -> None:

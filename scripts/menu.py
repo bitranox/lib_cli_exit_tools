@@ -327,7 +327,6 @@ class ParamScreen(Screen[Dict[str, str] | None]):
         self._preset = preset
         self._inputs: Dict[str, Input | Select[str]] = {}
         self._error: Static | None = None
-        self._buttons: list[Button] = []
 
     def compose(self) -> ComposeResult:  # type: ignore[override]
         with Container(id="backdrop"):
@@ -353,11 +352,7 @@ class ParamScreen(Screen[Dict[str, str] | None]):
                     self._inputs[param.name] = widget
                     yield widget
                 with Horizontal(id="buttons"):
-                    ok_btn = Button("OK", id="ok-btn")
-                    cancel_btn = Button("Cancel", id="cancel-btn")
-                    self._buttons = [ok_btn, cancel_btn]
-                    yield ok_btn
-                    yield cancel_btn
+                    yield Button("OK", id="ok-btn")
         yield Footer()
 
     def on_mount(self) -> None:  # type: ignore[override]
@@ -366,26 +361,6 @@ class ParamScreen(Screen[Dict[str, str] | None]):
     def on_button_pressed(self, event: Button.Pressed) -> None:  # type: ignore[override]
         if event.button.id == "ok-btn":
             self._submit()
-        elif event.button.id == "cancel-btn":
-            self.action_cancel()
-
-    def on_key(self, event: events.Key) -> None:  # type: ignore[override]
-        if event.key not in {"left", "right"}:
-            return
-        focused = self.focused
-        if not isinstance(focused, Button):
-            return
-        try:
-            current = self._buttons.index(focused)
-        except ValueError:
-            return
-        if event.key == "left":
-            next_index = max(current - 1, 0)
-        else:
-            next_index = min(current + 1, len(self._buttons) - 1)
-        if next_index != current:
-            self._buttons[next_index].focus()
-            event.stop()
 
     def on_input_submitted(self, event: Input.Submitted) -> None:  # type: ignore[override]
         if event.input.id and event.input.id.startswith("input-"):
@@ -450,8 +425,6 @@ class RunScreen(Screen[Optional[int]]):
         self._log = RichLog(highlight=True, markup=True, id="log")
         self._status = Static("", id="status")
         self._ok_button = Button("OK", id="ok-btn", disabled=True)
-        self._cancel_button = Button("Cancel", id="cancel-btn")
-        self._buttons: list[Button] = [self._ok_button, self._cancel_button]
         self._proc: asyncio.subprocess.Process | None = None
         self._runner: asyncio.Task[None] | None = None
         self._exit_code: Optional[int] = None
@@ -467,12 +440,11 @@ class RunScreen(Screen[Optional[int]]):
                 yield self._status
                 with Horizontal(id="buttons"):
                     yield self._ok_button
-                    yield self._cancel_button
         yield Footer()
 
     async def on_mount(self) -> None:  # type: ignore[override]
-        self._status.update("Running… Press Cancel to stop.")
-        self._cancel_button.focus()
+        self._status.update("Running… Press Esc to cancel.")
+        self._ok_button.focus()
         self._runner = asyncio.create_task(self._run_process())
 
     async def on_unmount(self) -> None:  # type: ignore[override]
@@ -484,26 +456,6 @@ class RunScreen(Screen[Optional[int]]):
     def on_button_pressed(self, event: Button.Pressed) -> None:  # type: ignore[override]
         if event.button.id == "ok-btn":
             self.dismiss(self._exit_code)
-        elif event.button.id == "cancel-btn":
-            self.action_cancel()
-
-    def on_key(self, event: events.Key) -> None:  # type: ignore[override]
-        if event.key not in {"left", "right"}:
-            return
-        focused = self.focused
-        if not isinstance(focused, Button):
-            return
-        try:
-            current = self._buttons.index(focused)
-        except ValueError:
-            return
-        if event.key == "left":
-            next_index = max(current - 1, 0)
-        else:
-            next_index = min(current + 1, len(self._buttons) - 1)
-        if next_index != current:
-            self._buttons[next_index].focus()
-            event.stop()
 
     def action_cancel(self) -> None:
         if self._proc and self._proc.returncode is None:

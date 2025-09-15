@@ -9,13 +9,13 @@ This directory contains packaging files and an automated sync flow so they stay 
   - Or semantic part: `make bump PART=patch|minor|major`
 - To only synchronize packaging to the current `pyproject.toml` without changing versions:
   ```bash
-  python3 tools/bump_version.py --sync-packaging
+  python3 scripts/bump_version.py --sync-packaging
   ```
 - `make test` runs the same sync step up-front to keep packaging up to date.
 
 ## What auto-sync updates
 
-The script `tools/bump_version.py` updates the following when network access is available:
+The script `scripts/bump_version.py` updates the following when network access is available:
 
 1) Conda recipe (`packaging/conda/recipe/meta.yaml`)
    - Sets Jinja version to the current `pyproject.toml` version.
