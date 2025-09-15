@@ -196,9 +196,10 @@ build: ## Build wheel/sdist and attempt conda, brew, and nix builds (auto-instal
 	  if [ -n "$$NIX" ]; then $$NIX build $(NIX_FLAKE)#default -L || true; fi; \
 	fi
 
-release: ## Create and push tag vX.Y.Z from pyproject, then sync packaging and commit
+release: ## Create and push tag vX.Y.Z from pyproject, create GitHub release (if gh present), then sync packaging
 	@set -euo pipefail; IFS=$$'\n\t'; \
-	VERSION=$$(grep -E '^version\s*=\s*"' pyproject.toml | sed -E 's/.*"([^"]+)".*/\1/'); \
+	VERSION=$$($(PY) -c "import re, pathlib; t=pathlib.Path('pyproject.toml').read_text(encoding='utf-8'); m=re.search(r'^version\\s*=\\s*\\\"([^\\\"]+)\\\"', t, re.M); print(m.group(1) if m else '')"); \
+	if [ -z "$$VERSION" ]; then echo "[release] Could not read version from pyproject.toml"; exit 1; fi; \
 	echo "[release] Target version $$VERSION"; \
 	# Ensure clean working tree
 	if ! git diff --quiet || ! git diff --cached --quiet; then \
@@ -217,6 +218,17 @@ release: ## Create and push tag vX.Y.Z from pyproject, then sync packaging and c
 	fi; \
 	echo "[release] Pushing tag v$$VERSION"; \
 	git push $(REMOTE) "v$$VERSION"; \
+	# Create GitHub release if gh CLI is available
+	if command -v gh >/dev/null 2>&1; then \
+	  if ! gh release view "v$$VERSION" >/dev/null 2>&1; then \
+	    echo "[release] Creating GitHub release v$$VERSION"; \
+	    gh release create "v$$VERSION" -t "v$$VERSION" -n "Release v$$VERSION" || true; \
+	  else \
+	    echo "[release] GitHub release v$$VERSION already exists"; \
+	  fi; \
+	else \
+	  echo "[release] gh CLI not found; skipping GitHub release creation"; \
+	fi; \
 	# Try to sync packaging (tarball hashes) a few times to tolerate propagation delay
 	for i in 1 2 3 4 5; do \
 	  echo "[release] Sync packaging attempt $$i"; \
