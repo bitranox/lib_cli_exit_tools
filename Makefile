@@ -78,6 +78,26 @@ test: _bootstrap-dev ## Lint, type-check, run tests with coverage, upload to Cod
 run: ## Run module CLI (requires dev install or src on PYTHONPATH)
 	$(PY) -m $(PKG) --help || true
 
+version-current: ## Print current version from pyproject.toml
+	@grep -E '^version\s*=\s*"' pyproject.toml | sed -E 's/.*"([^"]+)".*/\1/'
+
+bump: ## Bump version: VERSION=X.Y.Z or PART=major|minor|patch (default: patch); updates pyproject.toml and CHANGELOG.md
+	@set -e; \
+	if [ -n "$(VERSION)" ]; then \
+	  $(PY) tools/bump_version.py --version "$(VERSION)"; \
+	else \
+	  $(PY) tools/bump_version.py --part "$(PART)"; \
+	fi
+
+bump-patch: ## Bump patch version (X.Y.Z -> X.Y.(Z+1))
+	@PART=patch $(MAKE) bump
+
+bump-minor: ## Bump minor version (X.Y.Z -> X.(Y+1).0)
+	@PART=minor $(MAKE) bump
+
+bump-major: ## Bump major version ((X+1).0.0)
+	@PART=major $(MAKE) bump
+
 clean: ## Remove caches, build artifacts, and coverage
 	rm -rf \
 	  .pytest_cache \

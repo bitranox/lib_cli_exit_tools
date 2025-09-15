@@ -106,6 +106,8 @@ pip install .
 | `dev`      | Editable install with dev extras. |
 | `help`     | List all targets with one‑line docs. |
 | `install`  | Editable install (`pip install -e .`). |
+| `version-current` | Print version from pyproject.toml. |
+| `bump`     | Bump version (VERSION=X.Y.Z or PART=major|minor|patch). |
 | `push`     | Commit all changes once and push to GitHub (no CI monitoring). |
 | `run`      | Run module entry: `python -m lib_cli_exit_tools --help`. |
 | `test`     | Lint (ruff), format, type‑check (pyright), pytest + coverage, Codecov upload. |
@@ -116,6 +118,8 @@ pip install .
 - Auto‑bootstrap: `make test` will try to install dev tools (`pip install -e .[dev]`) if `ruff`/`pyright`/`pytest` are missing. Set `SKIP_BOOTSTRAP=1` to skip this behavior.
 - `build`: convenient builder — creates Python wheel/sdist, then attempts Conda, Homebrew, and Nix builds. It auto‑installs missing tools (Miniforge, Homebrew, Nix) when needed.
 - `install`/`dev`/`user-install`: common install flows for editable or per‑user installs.
+- `version-current`: prints current version from `pyproject.toml`.
+- `bump`: updates `pyproject.toml` version and inserts a new section in `CHANGELOG.md`. Use `VERSION=X.Y.Z make bump` or `make bump-minor`/`bump-major`/`bump-patch`.
 - `pipx-*` and `uv-*`: isolated CLI installations for end users and fast developer tooling.
 - `which-cmd`/`verify-install`: quick diagnostics to ensure the command is on PATH.
 
