@@ -25,7 +25,10 @@
           #   sha256 = "<fill-me>";
           # };
 
-          nativeBuildInputs = [ pypkgs.hatchling ];
+          # Ensure PEP 517 backend is available at required version
+          nativeBuildInputs = [
+            pypkgs.hatchling
+          ];
           propagatedBuildInputs = [ pypkgs.click ];
 
           meta = with pkgs.lib; {
