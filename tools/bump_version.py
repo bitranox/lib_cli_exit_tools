@@ -62,49 +62,49 @@ def _min_py_from_requires(spec: str) -> str | None:
     return m.group(1) if m else None
 
 
-def _read_pyproject_deps(pyproject: Path) -> Dict[str, str]:
-    """Read [project].dependencies into a {name_lower: spec} mapping.
+_COMPARATORS: tuple[str, ...] = ("==", "===", ">=", "<=", "~=", ">", "<", "!=")
 
-    Uses tomllib when available (Py>=3.11). Falls back to a minimal regex parser
-    that looks for a dependencies = ["..."] array.
+
+def _split_dep_spec(raw: str) -> tuple[str, str]:
+    name, spec = raw, ""
+    for cmp_ in _COMPARATORS:
+        if cmp_ in raw:
+            left, right = raw.split(cmp_, 1)
+            name = left.strip()
+            spec = cmp_ + right.strip()
+            break
+    return name.lower(), spec
+
+
+def _read_pyproject_deps(pyproject: Path) -> Dict[str, str]:
+    """Read [project].dependencies into {name_lower: spec}.
+
+    Prefers tomllib/tomli for correctness; falls back to a minimal regex
+    that parses a dependencies = ["..."] array when the toml parser
+    is unavailable.
     """
-    try:
-        if _tomllib is None:
-            raise RuntimeError("tomllib not available")
-        data = cast(dict[str, Any], cast(Any, _tomllib).loads(pyproject.read_text(encoding="utf-8")))
-        deps = cast(list[Any], data.get("project", {}).get("dependencies", []))
-        out: Dict[str, str] = {}
-        for d in deps:
-            if not isinstance(d, str):
-                continue
-            name, spec = d, ""
-            # Split at first comparator char
-            for cmp_ in ["==", "===", ">=", "<=", "~=", ">", "<", "!="]:
-                if cmp_ in d:
-                    name, spec = d.split(cmp_, 1)
-                    name = name.strip()
-                    spec = cmp_ + spec.strip()
-                    break
-            out[name.lower()] = spec or ""
-        return out
-    except Exception:
-        text = pyproject.read_text(encoding="utf-8")
+    text = pyproject.read_text(encoding="utf-8")
+    out: Dict[str, str] = {}
+    if _tomllib is not None:
+        try:
+            data = cast(dict[str, Any], cast(Any, _tomllib).loads(text))
+            deps = cast(list[Any], data.get("project", {}).get("dependencies", []))
+            for d in deps:
+                if isinstance(d, str) and d:
+                    name, spec = _split_dep_spec(d)
+                    out[name] = spec
+        except Exception:
+            # Fall back to regex parsing below
+            out.clear()
+    if not out:
         m = re.search(r"(?ms)^dependencies\s*=\s*\[(.*?)\]", text)
-        if not m:
-            return {}
-        body = m.group(1)
-        items = re.findall(r"\"([^\"]+)\"", body)
-        out: Dict[str, str] = {}
-        for d in items:
-            name, spec = d, ""
-            for cmp_ in ["==", "===", ">=", "<=", "~=", ">", "<", "!="]:
-                if cmp_ in d:
-                    name, spec = d.split(cmp_, 1)
-                    name = name.strip()
-                    spec = cmp_ + spec.strip()
-                    break
-            out[name.lower()] = spec or ""
-        return out
+        if m:
+            body = m.group(1)
+            for d in re.findall(r"\"([^\"]+)\"", body):
+                if d:
+                    name, spec = _split_dep_spec(d)
+                    out[name] = spec
+    return out
 
 
 def _pinned_version(spec: str) -> str | None:

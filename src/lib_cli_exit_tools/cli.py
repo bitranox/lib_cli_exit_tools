@@ -89,37 +89,37 @@ def _handle_exception(e: BaseException) -> int:
     """Centralized exception → exit-code + printing.
 
     Respects tools.config.traceback and uses tools.print_exception_message.
+    Returns an integer once (single return style).
     """
+    result: int | None = None
     if isinstance(e, (SigIntError, KeyboardInterrupt)):
         click.echo("Aborted (SIGINT).", err=True)
-        return 130  # 128 + SIGINT(2)
-    if isinstance(e, SigTermError):
+        result = 130  # 128 + SIGINT(2)
+    elif isinstance(e, SigTermError):
         click.echo("Terminated (SIGTERM/SIGBREAK).", err=True)
-        return 143  # 128 + SIGTERM(15)
-    if isinstance(e, SigBreakError):  # precise mapping for Windows Ctrl+Break
+        result = 143  # 128 + SIGTERM(15)
+    elif isinstance(e, SigBreakError):  # precise mapping for Windows Ctrl+Break
         click.echo("Terminated (SIGBREAK).", err=True)
-        return 149  # 128 + SIGBREAK(21)
-
-    # Broken pipe: stay quiet and exit with configured code
-    if isinstance(e, BrokenPipeError):
-        return int(tools.config.broken_pipe_exit_code)
-
-    # Click-raised errors (when standalone_mode=False) become ClickException or SystemExit
-    if isinstance(e, click.ClickException):
+        result = 149  # 128 + SIGBREAK(21)
+    elif isinstance(e, BrokenPipeError):
+        # Broken pipe: stay quiet and exit with configured code
+        result = int(tools.config.broken_pipe_exit_code)
+    elif isinstance(e, click.ClickException):
         e.show()
-        return e.exit_code
-    if isinstance(e, SystemExit):
+        result = e.exit_code
+    elif isinstance(e, SystemExit):
         try:
-            return int(e.code or 0)
+            result = int(e.code or 0)
         except Exception:
-            return 1
-
-    # Unexpected exception: print nicely or with traceback depending on config
-    if tools.config.traceback:
-        # Re-raise so Python prints full traceback (useful in CI/dev)
-        raise
-    tools.print_exception_message()
-    return tools.get_system_exit_code(e)
+            result = 1
+    else:
+        # Unexpected exception: print nicely or with traceback depending on config
+        if tools.config.traceback:
+            # Re-raise so Python prints full traceback (useful in CI/dev)
+            raise
+        tools.print_exception_message()
+        result = tools.get_system_exit_code(e)
+    return int(result)
 
 
 def main(argv: Optional[List[str]] = None) -> int:
