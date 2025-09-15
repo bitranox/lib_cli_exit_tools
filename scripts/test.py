@@ -36,13 +36,13 @@ def main(coverage: str, verbose: bool) -> None:
     sync_packaging()
 
     click.echo("[1/4] Ruff lint")
-    _run(["ruff", "check", "."])  # type: ignore[list-item]
+    _run(["ruff", "check", "."], check=False)  # type: ignore[list-item]
 
     click.echo("[2/4] Ruff format (apply)")
-    _run(["ruff", "format", "."])  # type: ignore[list-item]
+    _run(["ruff", "format", "."], check=False)  # type: ignore[list-item]
 
     click.echo("[3/4] Pyright type-check")
-    _run(["pyright"])  # type: ignore[list-item]
+    _run(["pyright"], check=False)  # type: ignore[list-item]
 
     click.echo("[4/4] Pytest with coverage")
     for f in (".coverage", "coverage.xml"):

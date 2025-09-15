@@ -1,6 +1,5 @@
 SHELL := /bin/bash
 .ONESHELL:
-
 # Config
 PY ?= python3
 PIP ?= pip
