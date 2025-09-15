@@ -114,8 +114,6 @@ pip install .
 | `push`            | Commit all changes once and push to GitHub (no CI monitoring)                              |
 | `build`           | Build wheel/sdist and attempt conda, brew, and nix builds (auto-installs tools if missing) |
 | `menu`            | Interactive TUI to run targets and edit parameters (requires dev dep: textual)             |
-| `menu-cli`        | Force simple prompt menu (no TUI)                                                          |
-| `menu-tui`        | Force Textual TUI (may not work in limited terminals)                                      |
 
 #### Target Parameters (env vars)
 
@@ -165,7 +163,7 @@ pip install .
 
 ### Interactive Menu (Textual)
 
-`make menu` launches a colorful terminal UI (powered by `textual`) to browse targets, edit parameters, and run them with live output. If the terminal doesn’t support a full TUI or `textual` can’t load, it falls back to a simple prompt menu.
+`make menu` launches a colorful terminal UI (powered by `textual`) to browse targets, edit parameters, and run them with live output.
 
 Install dev extras if you haven’t:
 
@@ -177,8 +175,6 @@ Run the menu:
 
 ```bash
 make menu
-make menu-cli   # always use simple prompt menu
-make menu-tui   # force TUI (if your terminal supports it)
 ```
 
 #### Target Details

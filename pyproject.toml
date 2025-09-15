@@ -61,7 +61,6 @@ target-version = "py313"
 [tool.pyright]
 typeCheckingMode = "strict"
 exclude = [
-  "scripts/menu.py",
   "docs",
 ]
 

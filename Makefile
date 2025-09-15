@@ -18,7 +18,7 @@ FAIL_UNDER ?= 80
 # - off  : never run coverage
 COVERAGE ?= on
 
-.PHONY: help install dev test run clean build push release version-current bump bump-patch bump-minor bump-major menu menu-cli menu-tui _bootstrap-dev
+.PHONY: help install dev test run clean build push release version-current bump bump-patch bump-minor bump-major menu menu-tui _bootstrap-dev
 
 help: ## Show help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -95,11 +95,5 @@ build: ## Build wheel/sdist and attempt conda, brew, and nix builds (auto-instal
 release: ## Create and push tag vX.Y.Z from pyproject, create GitHub release (if gh present), then sync packaging
 	$(PY) scripts/release.py --remote=$(REMOTE)
 
-menu: ## Interactive menu (CLI prompts by default)
-	$(PY) -u scripts/menu_cli.py < /dev/tty > /dev/tty 2>&1
-
-menu-cli: ## Force simple CLI prompt menu (no TUI)
-	$(PY) -u scripts/menu_cli.py < /dev/tty > /dev/tty 2>&1
-
-menu-tui: ## Force Textual TUI menu (may not work on limited terminals)
-	$(PY) -u scripts/menu_tui.py < /dev/tty > /dev/tty 2>&1
+menu: ## Interactive TUI menu
+	$(PY) -u scripts/menu.py < /dev/tty > /dev/tty 2>&1
