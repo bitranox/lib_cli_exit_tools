@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import io
 import subprocess
+import sys
+
+import pytest
 
 from lib_cli_exit_tools.lib_cli_exit_tools import (
     flush_streams,
@@ -18,6 +21,7 @@ def test_get_system_exit_code_system_exit():
         assert get_system_exit_code(e) == 99
 
 
+@pytest.mark.skipif(sys.platform.startswith("win"), reason="POSIX-specific expectations; skip on Windows")
 def test_get_system_exit_code_common_posix():
     try:
         raise FileNotFoundError("x")
