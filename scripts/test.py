@@ -9,7 +9,14 @@ from types import ModuleType
 import click
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from scripts._utils import bootstrap_dev, cmd_exists, get_project_metadata, run, sync_packaging  # noqa: E402
+from scripts._utils import (  # noqa: E402
+    RunResult,
+    bootstrap_dev,
+    cmd_exists,
+    get_project_metadata,
+    run,
+    sync_packaging,
+)
 
 PROJECT = get_project_metadata()
 COVERAGE_TARGET = PROJECT.coverage_source
@@ -24,7 +31,13 @@ def main(coverage: str, verbose: bool) -> None:
     if not verbose and env_verbose in {"1", "true", "yes", "on"}:
         verbose = True
 
-    def _run(cmd: list[str] | str, *, env: dict[str, str] | None = None, check: bool = True, capture: bool = True) -> None:
+    def _run(
+        cmd: list[str] | str,
+        *,
+        env: dict[str, str] | None = None,
+        check: bool = True,
+        capture: bool = True,
+    ) -> RunResult:
         display = cmd if isinstance(cmd, str) else " ".join(cmd)
         if verbose:
             click.echo(f"  $ {display}")
@@ -33,7 +46,7 @@ def main(coverage: str, verbose: bool) -> None:
                 if overrides:
                     env_view = " ".join(f"{k}={v}" for k, v in overrides.items())
                     click.echo(f"    env {env_view}")
-        run(cmd, env=env, check=check, capture=capture)  # type: ignore[arg-type]
+        return run(cmd, env=env, check=check, capture=capture)  # type: ignore[arg-type]
 
     bootstrap_dev()
 
@@ -83,11 +96,23 @@ def main(coverage: str, verbose: bool) -> None:
 
     if Path("coverage.xml").exists():
         click.echo("Uploading coverage to Codecov")
+        upload_result: RunResult | None = None
         if cmd_exists("codecov"):
             version = run(["python", "-c", "import platform; print(platform.python_version())"]).out.strip()
-            _run(["codecov", "-f", "coverage.xml", "-F", "local", "-n", f"local-$(uname)-{version}"], check=False)
+            upload_result = _run(
+                [
+                    "codecov",
+                    "-f",
+                    "coverage.xml",
+                    "-F",
+                    "local",
+                    "-n",
+                    f"local-$(uname)-{version}",
+                ],
+                check=False,
+            )
         else:
-            _run(
+            upload_result = _run(
                 [
                     "bash",
                     "-lc",
@@ -95,6 +120,18 @@ def main(coverage: str, verbose: bool) -> None:
                 ],
                 check=False,
             )
+
+        if upload_result is not None and not os.getenv("CI"):
+            if upload_result.code == 0:
+                click.echo("[codecov] upload succeeded")
+            else:
+                click.echo(f"[codecov] upload failed (exit {upload_result.code})")
+                if upload_result.err:
+                    click.echo(upload_result.err, err=True)
+                elif upload_result.out:
+                    click.echo(upload_result.out)
+    else:
+        click.echo("Skipping Codecov upload: coverage.xml not found")
 
     click.echo("All checks passed (coverage uploaded if configured).")
 
