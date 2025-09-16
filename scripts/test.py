@@ -1,18 +1,19 @@
 from __future__ import annotations
 
 import os
+import sys
 import tempfile
 from pathlib import Path
+from types import ModuleType
 
 import click
-import sys
-import tomllib
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts._utils import bootstrap_dev, cmd_exists, get_project_metadata, run, sync_packaging  # noqa: E402
 
 PROJECT = get_project_metadata()
 COVERAGE_TARGET = PROJECT.coverage_source
+_TOML_MODULE: ModuleType | None = None
 
 
 @click.command(help="Run lints, type-check, tests with coverage, and Codecov upload if configured")
@@ -98,9 +99,27 @@ def main(coverage: str, verbose: bool) -> None:
     click.echo("All checks passed (coverage uploaded if configured).")
 
 
+def _get_toml_module() -> ModuleType:
+    global _TOML_MODULE
+    if _TOML_MODULE is not None:
+        return _TOML_MODULE
+
+    try:
+        import tomllib as module  # type: ignore[import-not-found]
+    except ModuleNotFoundError:
+        try:
+            import tomli as module  # type: ignore[import-not-found, assignment]
+        except ModuleNotFoundError as exc:
+            raise ModuleNotFoundError("tomllib/tomli modules are unavailable. Install the 'tomli' package for Python < 3.11.") from exc
+
+    _TOML_MODULE = module
+    return module
+
+
 def _read_fail_under(pyproject: Path) -> int:
     try:
-        data = tomllib.loads(pyproject.read_text())
+        toml_module = _get_toml_module()
+        data = toml_module.loads(pyproject.read_text())
         return int(data["tool"]["coverage"]["report"]["fail_under"])
     except Exception:
         return 80
