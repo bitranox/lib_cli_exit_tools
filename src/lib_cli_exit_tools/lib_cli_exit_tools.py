@@ -91,16 +91,16 @@ def default_signal_specs() -> List[SignalSpec]:
         )
     ]
 
-    if os.name != "nt" and hasattr(signal, "SIGTERM"):
+    if hasattr(signal, "SIGTERM"):
         specs.append(
             SignalSpec(
-                signum=signal.SIGTERM,
+                signum=getattr(signal, "SIGTERM"),
                 exception=SigTermInterrupt,
                 message="Terminated (SIGTERM/SIGBREAK).",
                 exit_code=143,
             )
         )
-    elif hasattr(signal, "SIGBREAK"):
+    if hasattr(signal, "SIGBREAK"):
         specs.append(
             SignalSpec(
                 signum=getattr(signal, "SIGBREAK"),
