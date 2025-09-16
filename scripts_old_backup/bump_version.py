@@ -8,10 +8,6 @@ from typing import Any, Dict, Tuple, Optional, cast
 import json
 import urllib.request
 import hashlib
-import sys
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from scripts._utils import get_project_metadata  # noqa: E402
 
 # Optional TOML parser for Python < 3.11 support during type checking
 try:  # pragma: no cover - import resolution
@@ -21,8 +17,6 @@ except Exception:  # pragma: no cover - best-effort fallback
         import tomli as _tomllib  # type: ignore
     except Exception:  # noqa: PLC1901
         _tomllib = None  # type: ignore[assignment]
-
-PROJECT_META = get_project_metadata()
 
 
 def parse_args() -> argparse.Namespace:
@@ -227,20 +221,19 @@ def _update_conda_recipe(version: str, path: Path) -> None:
             text = new_text
             changed = True
     # Attempt to set sha256 for remote source tarball (used when COND A_USE_LOCAL != 1)
-    tar_url = PROJECT_META.github_tarball_url(version)
-    if tar_url:
-        try:
-            with urllib.request.urlopen(tar_url, timeout=10) as resp:
-                data = resp.read()
-            sha = hashlib.sha256(data).hexdigest()
-            text_sha = re.sub(r'(sha256:\s*")([^"]*)(")', rf"\1{sha}\3", text)
-            if text_sha != text:
-                text = text_sha
-                changed = True
-                print(f"[bump] conda recipe: sha256 updated for v{version}")
-        except Exception:
-            # Network may be unavailable; leave sha256 as-is
-            pass
+    try:
+        tar_url = f"https://github.com/bitranox/lib_cli_exit_tools/archive/refs/tags/v{version}.tar.gz"
+        with urllib.request.urlopen(tar_url, timeout=10) as resp:
+            data = resp.read()
+        sha = hashlib.sha256(data).hexdigest()
+        text_sha = re.sub(r'(sha256:\s*")([^"]*)(")', rf"\1{sha}\3", text)
+        if text_sha != text:
+            text = text_sha
+            changed = True
+            print(f"[bump] conda recipe: sha256 updated for v{version}")
+    except Exception:
+        # Network may be unavailable; leave sha256 as-is
+        pass
 
     if changed:
         path.write_text(text, encoding="utf-8")
@@ -255,19 +248,18 @@ def _brew_set_source_tag(text: str, version: str) -> tuple[str, bool]:
         changed = True
         text = new_text
     # Try to fetch tarball and compute sha256; replace first sha256 occurrence (main formula)
-    tar_url = PROJECT_META.github_tarball_url(version)
-    if tar_url:
-        try:
-            with urllib.request.urlopen(tar_url, timeout=10) as resp:
-                data = resp.read()
-            sha = hashlib.sha256(data).hexdigest()
-            pattern = r'(^\s*sha256\s+")([^"]+)(")'
-            updated = re.sub(pattern, rf"\1{sha}\3", text, count=1, flags=re.M)
-            if updated != text:
-                text = updated
-                changed = True
-        except Exception:
-            pass
+    try:
+        tar_url = f"https://github.com/bitranox/lib_cli_exit_tools/archive/refs/tags/v{version}.tar.gz"
+        with urllib.request.urlopen(tar_url, timeout=10) as resp:
+            data = resp.read()
+        sha = hashlib.sha256(data).hexdigest()
+        pattern = r'(^\s*sha256\s+")([^"]+)(")'
+        updated = re.sub(pattern, rf"\1{sha}\3", text, count=1, flags=re.M)
+        if updated != text:
+            text = updated
+            changed = True
+    except Exception:
+        pass
     return text, changed
 
 
@@ -346,13 +338,12 @@ def _update_nix_flake(version: str, path: Path) -> None:
         return
 
     # Replace version = "X.Y.Z";
-    # Update package block version only for the configured pname from pyproject
+    # Update package block version only for pname = "lib_cli_exit_tools"
     def repl_pkg_block(m: re.Match[str]) -> str:
         return f"{m.group(1)}{version}{m.group(3)}"
 
-    name_pattern = re.escape(PROJECT_META.name)
     t1 = re.sub(
-        rf"(pname\s*=\s*\"{name_pattern}\";\s*[^}}]*?\bversion\s*=\s*\")(\d+\.\d+\.\d+)(\";)",
+        r"(pname\s*=\s*\"lib_cli_exit_tools\";\s*[^}]*?\bversion\s*=\s*\")(\d+\.\d+\.\d+)(\";)",
         repl_pkg_block,
         text,
         flags=re.S,
@@ -407,7 +398,7 @@ def main() -> int:
             raise SystemExit("version not found in pyproject.toml")
         target = m.group(1)
         _update_conda_recipe(target, Path("packaging/conda/recipe/meta.yaml"))
-        _update_brew_formula(target, Path(PROJECT_META.brew_formula_path))
+        _update_brew_formula(target, Path("packaging/brew/Formula/lib-cli-exit-tools.rb"))
         _update_nix_flake(target, Path("packaging/nix/flake.nix"))
         return 0
 
@@ -438,7 +429,7 @@ def main() -> int:
 
     # Also bump packaging skeletons if present
     _update_conda_recipe(target, Path("packaging/conda/recipe/meta.yaml"))
-    _update_brew_formula(target, Path(PROJECT_META.brew_formula_path))
+    _update_brew_formula(target, Path("packaging/brew/Formula/lib-cli-exit-tools.rb"))
     _update_nix_flake(target, Path("packaging/nix/flake.nix"))
     return 0
 

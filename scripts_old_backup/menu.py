@@ -4,19 +4,11 @@ import asyncio
 import os
 import signal
 from dataclasses import dataclass
-from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Dict, Optional
 
 import contextlib
 
 from rich.text import Text
-
-import sys
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from scripts._utils import get_project_metadata  # noqa: E402
-
-PROJECT = get_project_metadata()
 
 if TYPE_CHECKING:
     from textual import events
@@ -178,7 +170,7 @@ class MenuScreen(Screen[None]):
     def compose(self) -> ComposeResult:  # type: ignore[override]
         with Container(id="backdrop"):
             with Vertical(id="window", classes="whiptail-window"):
-                yield Static(f"{PROJECT.name} — Make Targets", id="title")
+                yield Static("lib_cli_exit_tools — Make Targets", id="title")
                 self._description = Static("Select a target and press Enter.", id="description")
                 yield self._description
                 yield self._build_list()

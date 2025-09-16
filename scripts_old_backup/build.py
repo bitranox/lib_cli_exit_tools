@@ -3,7 +3,7 @@ from __future__ import annotations
 import click
 import sys
 
-from ._utils import cmd_exists, get_project_metadata, run
+from ._utils import cmd_exists, run
 
 
 @click.command(help="Build wheel/sdist, optionally attempt conda/brew/nix builds if tools present")
@@ -14,8 +14,6 @@ def main(conda: bool, brew: bool, nix: bool) -> None:
     click.echo("[1/4] Building wheel/sdist via python -m build")
     run([sys.executable, "-m", "build"])  # requires build in dev deps
 
-    project = get_project_metadata()
-
     click.echo("[2/4] Attempting conda-build")
     if conda and cmd_exists("conda"):
         run(["bash", "-lc", "CONDA_USE_LOCAL=1 conda build packaging/conda/recipe"], check=False)
@@ -24,7 +22,7 @@ def main(conda: bool, brew: bool, nix: bool) -> None:
 
     click.echo("[3/4] Attempting Homebrew build/install from local formula")
     if brew and cmd_exists("brew"):
-        run(["bash", "-lc", f"brew install --build-from-source {project.brew_formula_path}"], check=False)
+        run(["bash", "-lc", "brew install --build-from-source packaging/brew/Formula/lib-cli-exit-tools.rb"], check=False)
     else:
         click.echo("[brew] skipping: Homebrew not available or disabled")
 

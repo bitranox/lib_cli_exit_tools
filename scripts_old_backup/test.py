@@ -6,13 +6,9 @@ from pathlib import Path
 
 import click
 import sys
-import tomllib
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from scripts._utils import bootstrap_dev, cmd_exists, get_project_metadata, run, sync_packaging  # noqa: E402
-
-PROJECT = get_project_metadata()
-COVERAGE_TARGET = PROJECT.coverage_source
+from scripts._utils import bootstrap_dev, cmd_exists, run, sync_packaging  # noqa: E402
 
 
 @click.command(help="Run lints, type-check, tests with coverage, and Codecov upload if configured")
@@ -23,7 +19,7 @@ def main(coverage: str, verbose: bool) -> None:
     if not verbose and env_verbose in {"1", "true", "yes", "on"}:
         verbose = True
 
-    def _run(cmd: list[str] | str, *, env: dict[str, str] | None = None, check: bool = True, capture: bool = True) -> None:
+    def _run(cmd: list[str] | str, *, env: dict[str, str] | None = None, check: bool = True) -> None:
         display = cmd if isinstance(cmd, str) else " ".join(cmd)
         if verbose:
             click.echo(f"  $ {display}")
@@ -32,7 +28,7 @@ def main(coverage: str, verbose: bool) -> None:
                 if overrides:
                     env_view = " ".join(f"{k}={v}" for k, v in overrides.items())
                     click.echo(f"    env {env_view}")
-        run(cmd, env=env, check=check, capture=capture)  # type: ignore[arg-type]
+        run(cmd, env=env, check=check)  # type: ignore[arg-type]
 
     bootstrap_dev()
 
@@ -57,7 +53,6 @@ def main(coverage: str, verbose: bool) -> None:
 
     if coverage == "on" or (coverage == "auto" and (os.getenv("CI") or os.getenv("CODECOV_TOKEN"))):
         click.echo("[coverage] enabled")
-        fail_under = _read_fail_under(Path("pyproject.toml"))
         with tempfile.TemporaryDirectory() as tmp:
             cov_file = Path(tmp) / ".coverage"
             click.echo(f"[coverage] file={cov_file}")
@@ -67,18 +62,17 @@ def main(coverage: str, verbose: bool) -> None:
                     "python",
                     "-m",
                     "pytest",
-                    f"--cov={COVERAGE_TARGET}",
+                    "-q",
+                    "--cov=lib_cli_exit_tools",
                     "--cov-report=xml:coverage.xml",
                     "--cov-report=term-missing",
-                    f"--cov-fail-under={fail_under}",
-                    "-vv",
+                    "--cov-fail-under=80",
                 ],
                 env=env,
-                capture=False,
             )
     else:
         click.echo("[coverage] disabled (set --coverage=on to force)")
-        _run(["python", "-m", "pytest", "-vv"], capture=False)  # type: ignore[list-item]
+        _run(["python", "-m", "pytest", "-q"])  # type: ignore[list-item]
 
     if Path("coverage.xml").exists():
         click.echo("Uploading coverage to Codecov")
@@ -96,14 +90,6 @@ def main(coverage: str, verbose: bool) -> None:
             )
 
     click.echo("All checks passed (coverage uploaded if configured).")
-
-
-def _read_fail_under(pyproject: Path) -> int:
-    try:
-        data = tomllib.loads(pyproject.read_text())
-        return int(data["tool"]["coverage"]["report"]["fail_under"])
-    except Exception:
-        return 80
 
 
 if __name__ == "__main__":

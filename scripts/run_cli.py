@@ -1,13 +1,22 @@
 from __future__ import annotations
 
 import click
+import sys
+from importlib import import_module
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from scripts._utils import get_project_metadata  # noqa: E402
+
+PROJECT = get_project_metadata()
+PACKAGE = PROJECT.import_package
 
 
-@click.command(help="Run lib_cli_exit_tools CLI (passes additional args)")
+@click.command(help=f"Run {PROJECT.name} CLI (passes additional args)")
 @click.argument("args", nargs=-1)
 def main(args: tuple[str, ...]) -> None:
-    __import__("lib_cli_exit_tools.__main__")
-    from lib_cli_exit_tools.cli import main as cli_main
+    import_module(f"{PACKAGE}.__main__")
+    cli_main = import_module(f"{PACKAGE}.cli").main
 
     code = cli_main(list(args) if args else ["--help"])  # returns int
     raise SystemExit(int(code))
