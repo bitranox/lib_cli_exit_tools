@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.1.0] - 2025-09-16
+
+- introduced lib_cli_exit_tools.run_cli helper to reduce boilerplate code. see cli.py as example
+
 ## [1.0.3] - 2025-09-16
 
 - added make menu

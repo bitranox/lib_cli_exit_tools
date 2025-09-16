@@ -200,6 +200,37 @@ cli-exit-tools --help  # alias
 lib_cli_exit_tools info
 ```
 
+### Embed in your own CLI
+
+The `run_cli` helper wraps any Click command with lib_cli_exit_tools’ signal and error handling.
+
+```python
+from __future__ import annotations
+
+import click
+
+from lib_cli_exit_tools import run_cli
+
+
+@click.command()
+def hello() -> None:
+    """Minimal Click command with automatic signal-aware exit handling."""
+
+    click.echo("Hello from lib_cli_exit_tools!")
+
+
+if __name__ == "__main__":
+    # run_cli handles SIGINT/SIGTERM/SIGBREAK, Click exceptions, and converts
+    # any other exception into an appropriate exit code.
+    raise SystemExit(run_cli(hello))
+```
+
+Run it with:
+
+```bash
+python hello.py
+```
+
 Library:
 
 ```python
