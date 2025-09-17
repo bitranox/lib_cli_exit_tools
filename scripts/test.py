@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import platform
 import sys
 import tempfile
 from pathlib import Path
@@ -37,6 +38,7 @@ def main(coverage: str, verbose: bool) -> None:
         env: dict[str, str] | None = None,
         check: bool = True,
         capture: bool = True,
+        label: str | None = None,
     ) -> RunResult:
         display = cmd if isinstance(cmd, str) else " ".join(cmd)
         if verbose:
@@ -46,7 +48,10 @@ def main(coverage: str, verbose: bool) -> None:
                 if overrides:
                     env_view = " ".join(f"{k}={v}" for k, v in overrides.items())
                     click.echo(f"    env {env_view}")
-        return run(cmd, env=env, check=check, capture=capture)  # type: ignore[arg-type]
+        result = run(cmd, env=env, check=check, capture=capture)  # type: ignore[arg-type]
+        if verbose and label:
+            click.echo(f"    -> {label}: exit={result.code} out={bool(result.out)} err={bool(result.err)}")
+        return result
 
     bootstrap_dev()
 
@@ -89,16 +94,21 @@ def main(coverage: str, verbose: bool) -> None:
                 ],
                 env=env,
                 capture=False,
+                label="pytest",
             )
     else:
         click.echo("[coverage] disabled (set --coverage=on to force)")
-        _run(["python", "-m", "pytest", "-vv"], capture=False)  # type: ignore[list-item]
+        _run(["python", "-m", "pytest", "-vv"], capture=False, label="pytest-no-cov")  # type: ignore[list-item]
+
+    _ensure_codecov_token()
+
+    upload_result: RunResult | None = None
+    uploaded = False
 
     if Path("coverage.xml").exists():
         click.echo("Uploading coverage to Codecov")
-        upload_result: RunResult | None = None
+        codecov_name = f"local-{platform.system()}-{platform.python_version()}"
         if cmd_exists("codecov"):
-            version = run(["python", "-c", "import platform; print(platform.python_version())"]).out.strip()
             upload_result = _run(
                 [
                     "codecov",
@@ -107,23 +117,43 @@ def main(coverage: str, verbose: bool) -> None:
                     "-F",
                     "local",
                     "-n",
-                    f"local-$(uname)-{version}",
+                    codecov_name,
                 ],
                 check=False,
+                label="codecov-upload-cli",
             )
         else:
-            upload_result = _run(
-                [
-                    "bash",
-                    "-lc",
-                    "curl -s https://codecov.io/bash -o codecov.sh && bash codecov.sh -f coverage.xml -F local -n local-$(uname)-$(python -c 'import platform; print(platform.python_version())') ${CODECOV_TOKEN:+-t $CODECOV_TOKEN} || true && rm -f codecov.sh",
-                ],
-                check=False,
+            token = os.getenv("CODECOV_TOKEN")
+            download = _run(
+                ["curl", "-s", "https://codecov.io/bash", "-o", "codecov.sh"],
+                capture=False,
+                label="codecov-download",
             )
+            if download.code == 0:
+                upload_cmd = [
+                    "bash",
+                    "codecov.sh",
+                    "-f",
+                    "coverage.xml",
+                    "-F",
+                    "local",
+                    "-n",
+                    codecov_name,
+                ]
+                if token:
+                    upload_cmd.extend(["-t", token])
+                upload_result = _run(upload_cmd, check=False, label="codecov-upload-fallback")
+            else:
+                click.echo("[codecov] failed to download uploader", err=True)
+            try:
+                Path("codecov.sh").unlink()
+            except FileNotFoundError:
+                pass
 
-        if upload_result is not None and not os.getenv("CI"):
+        if upload_result is not None:
             if upload_result.code == 0:
                 click.echo("[codecov] upload succeeded")
+                uploaded = True
             else:
                 click.echo(f"[codecov] upload failed (exit {upload_result.code})")
                 if upload_result.err:
@@ -133,7 +163,13 @@ def main(coverage: str, verbose: bool) -> None:
     else:
         click.echo("Skipping Codecov upload: coverage.xml not found")
 
-    click.echo("All checks passed (coverage uploaded if configured).")
+    if Path("coverage.xml").exists():
+        if uploaded:
+            click.echo("All checks passed (coverage uploaded)")
+        else:
+            click.echo("Checks finished (coverage upload not confirmed)")
+    else:
+        click.echo("Checks finished (coverage.xml missing, upload skipped)")
 
 
 def _get_toml_module() -> ModuleType:
@@ -160,6 +196,26 @@ def _read_fail_under(pyproject: Path) -> int:
         return int(data["tool"]["coverage"]["report"]["fail_under"])
     except Exception:
         return 80
+
+
+def _ensure_codecov_token() -> None:
+    if os.getenv("CODECOV_TOKEN"):
+        return
+    env_path = Path(".env")
+    if not env_path.is_file():
+        return
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if "=" not in stripped:
+            continue
+        key, value = stripped.split("=", 1)
+        if key.strip() == "CODECOV_TOKEN":
+            token = value.strip().strip("\"'")
+            if token:
+                os.environ.setdefault("CODECOV_TOKEN", token)
+            break
 
 
 if __name__ == "__main__":
