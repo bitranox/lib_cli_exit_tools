@@ -14,6 +14,7 @@
   - python_small_functions_style.md
   - python_libraries_to_use.md
   - python_structure_template.md
+  - self_documenting.md
 
 always apply those Rules :
 
@@ -21,19 +22,22 @@ always apply those Rules :
 
 when writing or refracturing Bash scripts, apply those Rules :
 
-- core_programming_solid.md
-- bash_clean_architecture.md
-- bash_clean_code.md
-- bash_small_functions.md
+  - core_programming_solid.md
+  - bash_clean_architecture.md
+  - bash_clean_code.md
+  - bash_small_functions.md
 
 when writing or refracturing Python scripts, apply those Rules :
-- core_programming_solid.md
-- python_solid_architecture_enforcer.md
-- python_clean_architecture.md
-- python_clean_code.md
-- python_small_functions_style.md
-- python_libraries_to_use.md
-- python_lib_structure_template.md
+  - core_programming_solid.md
+  - python_solid_architecture_enforcer.md
+  - python_clean_architecture.md
+  - python_clean_code.md
+  - python_small_functions_style.md
+  - python_libraries_to_use.md
+  - python_lib_structure_template.md
+
+read the documantations from docs/system-design/* and keep their guidance in working memory
+
 
 ## Project Structure & Module Organization
 
@@ -94,3 +98,8 @@ when writing or refracturing Python scripts, apply those Rules :
 
 - run "make test" before any push to avoid lint/test breakage.
 - after push, monitor errors in the github actions and try to correct the errors
+
+## documentation
+whenever a new feature, function, configuration, dataclass field, etc. is introduced: 
+  - check first if it aligns with docs/systemdesign/*  
+  - document it in docs/systemdesign/module_reference.md, using the template from self_documenting.md and save it in docs/systemdesign/module_reference.md 

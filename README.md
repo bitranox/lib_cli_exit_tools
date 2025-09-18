@@ -19,7 +19,17 @@ Small helpers for robust CLI exit handling:
 
 ## Install
 
-Pick one of the options below. All methods register the `lib_cli_exit_tools` and `cli-exit-tools` commands on your PATH.
+Pick one of the options below. All methods register the `lib_cli_exit_tools`, `cli-exit-tools`, and `lib-cli-exit-tools` commands on your PATH.
+
+### 0) PyPI (latest release)
+
+```bash
+pip install lib_cli_exit_tools
+# Pin to the current release if you need reproducibility
+pip install "lib_cli_exit_tools==1.1.0"
+# Upgrade to the newest release later
+pip install --upgrade lib_cli_exit_tools
+```
 
 ### 1) Standard virtualenv (pip)
 
@@ -45,7 +55,7 @@ Note: respects PEP 668; avoid on system Python if “externally managed”. Ensu
 pipx install .
 pipx upgrade lib_cli_exit_tools
 # From Git tag/commit:
-pipx install "git+https://github.com/bitranox/lib_cli_exit_tools@v0.1.0"
+pipx install "git+https://github.com/bitranox/lib_cli_exit_tools@v1.1.0"
 ```
 
 ### 4) uv (fast installer/runner)
@@ -79,7 +89,7 @@ pdm install
 ### 7) From Git via pip (CI-friendly)
 
 ```bash
-pip install "git+https://github.com/bitranox/lib_cli_exit_tools@v0.1.0#egg=lib_cli_exit_tools"
+pip install "git+https://github.com/bitranox/lib_cli_exit_tools@v1.1.0#egg=lib_cli_exit_tools"
 ```
 
 ### 8) Conda/mamba (optional)
@@ -96,98 +106,6 @@ pip install .
 - Nix: flake/package for reproducible installs
 - Deb/RPM via `fpm` for OS-native packages
 
-### Make Targets
-
-| Target            | Description                                                                                |
-|-------------------|--------------------------------------------------------------------------------------------|
-| `help`            | Show help                                                                                  |
-| `install`         | Install package editable                                                                   |
-| `dev`             | Install package with dev extras                                                            |
-| `test`            | Lint, type-check, run tests with coverage, upload to Codecov                               |
-| `run`             | Run module CLI (requires dev install or src on PYTHONPATH)                                 |
-| `version-current` | Print current version from pyproject.toml                                                  |
-| `bump`            | Bump version (updates pyproject.toml and CHANGELOG.md)                                     |
-| `bump-patch`      | Bump patch version (X.Y.Z -> X.Y.(Z+1))                                                    |
-| `bump-minor`      | Bump minor version (X.Y.Z -> X.(Y+1).0)                                                    |
-| `bump-major`      | Bump major version ((X+1).0.0)                                                             |
-| `clean`           | Remove caches, build artifacts, and coverage                                               |
-| `push`            | Commit all changes once and push to GitHub (no CI monitoring)                              |
-| `build`           | Build wheel/sdist and attempt conda, brew, and nix builds (auto-installs tools if missing) |
-| `menu`            | Interactive TUI to run targets and edit parameters (requires dev dep: textual)             |
-
-#### Target Parameters (env vars)
-
-- Global
-  - `PY` (default: `python3`) — Python interpreter used to run scripts
-  - `PIP` (default: `pip`) — pip executable used by bootstrap/install
-
-- `install`
-  - No specific parameters (respects `PY`, `PIP`).
-
-- `dev`
-  - No specific parameters (respects `PY`, `PIP`).
-
-- `test`
-  - `COVERAGE=on|auto|off` (default: `on`) — controls pytest coverage run and Codecov upload
-  - `SKIP_BOOTSTRAP=1` — skip auto-install of dev tools if missing
-  - `TEST_VERBOSE=1` — echo each command executed by the test harness
-  - Also respects `CODECOV_TOKEN` when needed for uploads
-
-- `run`
-  - No parameters via `make` (always shows `--help`). For custom args: `python scripts/run_cli.py -- <args>`.
-
-- `version-current`
-  - No parameters
-
-- `bump`
-  - `VERSION=X.Y.Z` — explicit target version
-  - `PART=major|minor|patch` — semantic part to bump (default if `VERSION` not set: `patch`)
-  - Examples:
-    - `make bump VERSION=1.0.2`
-    - `make bump PART=minor`
-
-- `bump-patch` / `bump-minor` / `bump-major`
-  - No parameters; shorthand for `make bump PART=...`
-
-- `clean`
-  - No parameters
-
-- `push`
-  - `REMOTE=<name>` (default: `origin`) — git remote to push to
-
-- `build`
-  - No parameters via `make`. Advanced: use the script directly, e.g. `python scripts/build.py --no-conda --no-nix`.
-
-- `release`
-  - `REMOTE=<name>` (default: `origin`) — git remote to push to
-  - Advanced (via script): `python scripts/release.py --retries 5 --retry-wait 3.0`
-
-### Interactive Menu (Textual)
-
-`make menu` launches a colorful terminal UI (powered by `textual`) to browse targets, edit parameters, and run them with live output.
-
-Install dev extras if you haven’t:
-
-```bash
-pip install -e .[dev]
-```
-
-Run the menu:
-
-```bash
-make menu
-```
-
-#### Target Details
-
-- `test`: single entry point for local CI — runs ruff lint + format check, pyright, pytest (including doctests) with coverage (enabled by default), and uploads coverage to Codecov if configured (reads `.env`).
-- Auto‑bootstrap: `make test` will try to install dev tools (`pip install -e .[dev]`) if `ruff`/`pyright`/`pytest` are missing. Set `SKIP_BOOTSTRAP=1` to skip this behavior.
-- `build`: convenient builder — creates Python wheel/sdist, then attempts Conda, Homebrew, and Nix builds. It auto‑installs missing tools (Miniforge, Homebrew, Nix) when needed.
-- `install`/`dev`/`user-install`: common install flows for editable or per‑user installs.
-- `version-current`: prints current version from `pyproject.toml`.
-- `bump`: updates `pyproject.toml` version and inserts a new section in `CHANGELOG.md`. Use `VERSION=X.Y.Z make bump` or `make bump-minor`/`bump-major`/`bump-patch`.
-- `pipx-*` and `uv-*`: isolated CLI installations for end users and fast developer tooling.
-- `which-cmd`/`verify-install`: quick diagnostics to ensure the command is on PATH.
 
 ## Usage
 
@@ -256,6 +174,114 @@ If you installed with --user or in a venv, make sure the corresponding bin direc
 - Windows venv: .venv\Scripts
 - Windows user: %APPDATA%\Python\PythonXY\Scripts
 
+### Runtime configuration
+
+All configuration lives on the module-level `lib_cli_exit_tools.config` object. Adjust it once during startup; the settings apply process-wide:
+
+```python
+from lib_cli_exit_tools import config
+
+config.traceback = True              # emit full tracebacks instead of short messages
+config.exit_code_style = "sysexits"  # emit BSD-style exit codes (EX_USAGE, EX_NOINPUT, …)
+config.broken_pipe_exit_code = 0     # treat BrokenPipeError as a benign truncation
+```
+
+Field reference:
+
+- `traceback` (`bool`, default `False`): when `True`, unhandled exceptions bubble up so you see the full traceback. The bundled CLI toggles this via `--traceback/--no-traceback`.
+- `exit_code_style` (`"errno"` or `"sysexits"`, default `"errno"`): controls the numeric mapping produced by `get_system_exit_code`. `errno` returns POSIX/Windows-style codes (e.g., `FileNotFoundError → 2`, `SIGINT → 130`); `sysexits` returns BSD-style semantic codes (`EX_NOINPUT`, `EX_USAGE`, etc.).
+- `broken_pipe_exit_code` (`int`, default `141`): overrides the exit status when a `BrokenPipeError` is raised (the default mirrors `128 + SIGPIPE`). Set this to `0` if you want truncation to be treated as success.
+
+Remember that `config` is module-level—if you call the library from multiple threads or embed it in another CLI, configure it once during bootstrap before handing control to user code.
+
+### Advanced CLI wiring
+
+For larger applications, keep module execution, console scripts, and shared helpers aligned. The snippet below shows how `__main__.py` can catch unexpected errors and map them through `lib_cli_exit_tools` before exiting:
+
+```python
+# src/your_package/__main__.py
+from __future__ import annotations
+
+import lib_cli_exit_tools
+
+from .cli import main
+
+if __name__ == "__main__":
+    try:
+        exit_code = int(main())
+    except BaseException as exc:  # fallback to shared exit helpers
+        lib_cli_exit_tools.print_exception_message()
+        exit_code = lib_cli_exit_tools.get_system_exit_code(exc)
+    raise SystemExit(exit_code)
+```
+
+A multi-command Click CLI can reuse the same configuration object and expose custom commands while still delegating wiring to `run_cli`:
+
+```python
+# src/your_package/cli.py
+from __future__ import annotations
+
+from typing import Optional, Sequence
+
+import click
+import lib_cli_exit_tools
+
+from . import __init__conf__
+from .lib_template import hello_world as _hello_world
+from .lib_template import i_should_fail as _fail
+
+CLICK_CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])  # noqa: C408
+
+
+@click.group(help=__init__conf__.title, context_settings=CLICK_CONTEXT_SETTINGS)
+@click.version_option(
+    version=__init__conf__.version,
+    prog_name=__init__conf__.shell_command,
+    message=f"{__init__conf__.shell_command} version {__init__conf__.version}",
+)
+@click.option(
+    "--traceback/--no-traceback",
+    is_flag=True,
+    default=False,
+    help="Show full Python traceback on errors",
+)
+@click.pass_context
+def cli(ctx: click.Context, traceback: bool) -> None:
+    """Root CLI group. Stores global opts in context & shared config."""
+    ctx.ensure_object(dict)
+    ctx.obj["traceback"] = traceback
+    lib_cli_exit_tools.config.traceback = traceback
+
+
+@cli.command("info", context_settings=CLICK_CONTEXT_SETTINGS)
+def cli_info() -> None:
+    """Print project information."""
+    __init__conf__.print_info()
+
+
+@cli.command("hello", context_settings=CLICK_CONTEXT_SETTINGS)
+def cli_hello() -> None:
+    """Print the standard hello message."""
+    _hello_world()
+
+
+@cli.command("fail", context_settings=CLICK_CONTEXT_SETTINGS)
+def cli_fail() -> None:
+    """Trigger the intentional failure helper."""
+    _fail()
+
+
+def main(argv: Optional[Sequence[str]] = None) -> int:
+    """Entrypoint returning an exit code via shared run_cli helper."""
+    return lib_cli_exit_tools.run_cli(
+        cli,
+        argv=list(argv) if argv is not None else None,
+        prog_name=__init__conf__.shell_command,
+    )
+```
+
+When installed, the generated console scripts (`lib_cli_exit_tools`, `cli-exit-tools`, `lib-cli-exit-tools`) will import `your_package.cli:main`, and `python -m your_package` will follow the same code path via `__main__.py`.
+
 ## Exit Codes
 
 - SIGINT → 130, SIGTERM → 143 (POSIX), SIGBREAK → 149 (Windows)
@@ -272,61 +298,8 @@ If you installed with --user or in a venv, make sure the corresponding bin direc
 
 ## Development
 
-```bash
-make test                 # ruff + pyright + pytest + coverage (default ON)
-SKIP_BOOTSTRAP=1 make test  # skip auto-install of dev deps
-COVERAGE=off make test       # disable coverage locally
-COVERAGE=on make test        # force coverage and generate coverage.xml/codecov.xml
-```
+See [DEVELOPMENT.md](DEVELOPMENT.md) for contributor workflows, make targets, packaging sync details, and CI/publishing guidance.
 
-### Packaging sync (Conda/Brew/Nix)
-
-- `make test` and `make push` automatically align the packaging skeletons in `packaging/` with the current `pyproject.toml`:
-  - Conda: updates `{% set version = "X.Y.Z" %}` and both `python >=X.Y` constraints to match `requires-python`.
-  - Homebrew: updates the source URL tag to `vX.Y.Z` and sets `depends_on "python@X.Y"` to match `requires-python`.
-  - Nix: updates the package `version`, example `rev = "vX.Y.Z"`, and switches `pkgs.pythonXYZPackages` / `pkgs.pythonXYZ` to match the minimum Python version from `requires-python`.
-
-- To run just the sync without bumping versions: `python scripts/bump_version.py --sync-packaging`.
-
-- On release tags (`v*.*.*`), CI validates that packaging files are consistent with `pyproject.toml` and will fail if they drift.
-
-## Versioning & Metadata
-
-- Single source of truth for package metadata is `pyproject.toml` (`[project]`).
-- The library reads its own installed metadata at runtime via `importlib.metadata` (see `src/lib_cli_exit_tools/__init__conf__.py`).
-- Do not duplicate the version in code; bump only `pyproject.toml` and update `CHANGELOG.md`.
-- Console script name is discovered from entry points; defaults to `lib_cli_exit_tools`.
-
-## Packaging Skeletons
-
-Starter files for package managers live under `packaging/`:
-
-- Conda: `packaging/conda/recipe/meta.yaml` (update version + sha256)
-- Homebrew: `packaging/brew/Formula/lib-cli-exit-tools.rb` (fill sha256 and vendored resources)
-- Nix: `packaging/nix/flake.nix` (use working tree or pin to GitHub rev with sha256)
-
-These are templates; fill placeholders (e.g., sha256) before publishing. Version and Python constraints are auto-synced from `pyproject.toml` by `make test`/`make push` and during version bumps.
-
-## CI & Publishing
-
-GitHub Actions workflows are included:
-
-- `.github/workflows/ci.yml` — lint/type/test, build wheel/sdist, verify pipx and uv installs, Nix and Conda builds (CI-only; no local install required).
-- `.github/workflows/release.yml` — on tags `v*.*.*`, builds artifacts and publishes to PyPI when `PYPI_API_TOKEN` secret is set.
-
-To publish a release:
-1. Bump `pyproject.toml` version and update `CHANGELOG.md`.
-2. Tag the commit (`git tag v0.1.1 && git push --tags`).
-3. Ensure `PYPI_API_TOKEN` secret is configured in the repo.
-4. Release workflow uploads wheel/sdist to PyPI.
-
-Conda/Homebrew/Nix: use files in `packaging/` to submit to their ecosystems. CI also attempts builds to validate recipes, but does not publish automatically.
-
-### Local Codecov uploads
-
-- `make test` (with coverage enabled) generates `coverage.xml` and `codecov.xml`, then attempts to upload via the Codecov CLI or the bash uploader.
-- For private repos, set `CODECOV_TOKEN` (see `.env.example`) or export it in your shell.
-- For public repos, a token is typically not required.
 
 ## License
 

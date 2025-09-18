@@ -140,7 +140,14 @@ def _build_targets() -> list[Target]:
         Target(
             "push",
             "Run tests, sync packaging, commit, push",
-            [Param("REMOTE", "Git remote", default=_env_default("REMOTE", "origin"))],
+            [
+                Param("REMOTE", "Git remote", default=_env_default("REMOTE", "origin")),
+                Param(
+                    "COMMIT_MESSAGE",
+                    "Commit message",
+                    default=_env_default("COMMIT_MESSAGE", "chore: update"),
+                ),
+            ],
         ),
         Target("build", "Build wheel/sdist; attempt conda/brew/nix if available", []),
         Target(

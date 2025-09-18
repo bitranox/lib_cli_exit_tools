@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import click
 import sys
 from pathlib import Path
@@ -19,14 +20,39 @@ def main(remote: str) -> None:
 
     click.echo("[push] Committing and pushing (single attempt)")
     run(["git", "add", "-A"])  # stage all
-    # Commit only if there are staged diffs
     staged = run(["bash", "-lc", "! git diff --cached --quiet"], check=False)
-    if staged.code == 0:
-        run(["git", "commit", "-m", "chore: update"])  # type: ignore[list-item]
-    else:
-        click.echo("[push] Nothing to commit; pushing branch")
+    message = _resolve_commit_message()
+    if staged.code != 0:
+        click.echo("[push] No staged changes detected; creating empty commit")
+    run(["git", "commit", "--allow-empty", "-m", message])  # type: ignore[list-item]
     branch = git_branch()
     run(["git", "push", "-u", remote, branch])  # type: ignore[list-item]
+
+
+def _resolve_commit_message() -> str:
+    default_message = os.environ.get("COMMIT_MESSAGE", "chore: update").strip() or "chore: update"
+    env_message = os.environ.get("COMMIT_MESSAGE")
+    if env_message is not None:
+        message = env_message.strip() or default_message
+        click.echo(f"[push] Using commit message from COMMIT_MESSAGE: {message}")
+        return message
+
+    if sys.stdin.isatty():
+        return click.prompt("[push] Commit message", default=default_message)
+
+    try:
+        with open("/dev/tty", "r+", encoding="utf-8", errors="ignore") as tty:
+            tty.write(f"[push] Commit message [{default_message}]: ")
+            tty.flush()
+            response = tty.readline()
+    except OSError:
+        click.echo("[push] Non-interactive input; using default commit message")
+        return default_message
+    except KeyboardInterrupt:
+        raise SystemExit("[push] Commit aborted by user")
+
+    response = response.strip()
+    return response or default_message
 
 
 if __name__ == "__main__":
