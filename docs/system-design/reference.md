@@ -80,6 +80,7 @@ The package is the core runtime library for handling CLI exits within the broade
 **Purpose:** Describes how to translate an OS signal into an exception, user-facing message, and exit code.  
 **Input:** Constructed with `signum`, `exception`, `message`, `exit_code`.  
 **Output:** Consumed by `install_signal_handlers` and `handle_cli_exception`.  
+**Implementation notes:** Instances are immutable; `default_signal_specs()` returns a fresh list each call so consumers can mutate copies safely.  
 **Location:** `lib_cli_exit_tools/lib_cli_exit_tools.py`
 
 #### Protocol: _Echo
@@ -110,18 +111,21 @@ The package is the core runtime library for handling CLI exits within the broade
 **Purpose:** Register handlers for the provided signal specs and return a restoration callback.  
 **Input:** `specs: Sequence[SignalSpec] | None`. Defaults to `default_signal_specs()`.  
 **Output:** `Callable[[], None]` that restores prior handlers; skips unsupported signals gracefully.  
+**Implementation notes:** Handlers are process-wide; callers must invoke the restore callback in a `finally` block to avoid leaking altered signal state.  
 **Location:** `lib_cli_exit_tools/lib_cli_exit_tools.py`
 
 #### Function: handle_cli_exception
 **Purpose:** Convert exceptions thrown by Click commands into deterministic exit codes and user feedback.  
 **Input:** `exc: BaseException`, optional `signal_specs`, optional `echo` callable.  
 **Output:** Integer exit code; may emit messages or re-raise based on `config.traceback`.  
+**Implementation notes:** Falls back to `print_exception_message()` and `get_system_exit_code()` when no special-case matches. When `config.traceback` is `True` the original exception propagates.  
 **Location:** `lib_cli_exit_tools/lib_cli_exit_tools.py`
 
 #### Function: run_cli
 **Purpose:** Execute a Click `BaseCommand` with consistent error handling and signal wiring.  
 **Input:** `cli`, optional `argv`, optional `prog_name`, optional `signal_specs`, `install_signals` flag.  
 **Output:** Integer exit code (0 on success, otherwise derived via `handle_cli_exception`).  
+**Implementation notes:** Installs signal handlers unless `install_signals=False`, ensures restoration in a `finally` block, and flushes streams before returning.  
 **Location:** `lib_cli_exit_tools/lib_cli_exit_tools.py`
 
 #### Function: get_system_exit_code

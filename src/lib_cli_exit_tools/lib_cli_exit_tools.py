@@ -1,4 +1,23 @@
-"""Core helpers for clean CLI exits, error printing, and Click integration."""
+"""CLI exit orchestration helpers used by the lib-cli-exit-tools package.
+
+Purpose:
+    Provide reusable building blocks for Click-based CLIs so they translate
+    Python exceptions, OS signals, and subprocess failures into deterministic
+    exit codes without leaking stack traces by default.
+Contents:
+    * `_Config` and the shared `config` object that let transports toggle
+      traceback emission, exit-code styles, and broken-pipe behavior.
+    * Signal-related types (`SignalSpec`, `CliSignalError` subclasses) and the
+      `install_signal_handlers` helper that wire POSIX/Windows signals into
+      structured Python exceptions.
+    * Exit-code helpers (`handle_cli_exception`, `get_system_exit_code`,
+      `_sysexits_mapping`) and CLI orchestration (`run_cli`).
+System Integration:
+    The CLI adapter defined in :mod:`lib_cli_exit_tools.cli` mutates `config`
+    based on global Click options and delegates command execution to
+    :func:`run_cli`. API consumers import this module directly when they need
+    signal registration or exit-code derivation outside the bundled CLI.
+"""
 
 from __future__ import annotations
 
@@ -32,35 +51,100 @@ __all__ = [
 
 @dataclass(slots=True)
 class _Config:
-    """Runtime configuration for library behavior."""
+    """Centralized runtime flags shared across all CLI executions.
+
+    Why:
+        Prevent each CLI adapter from re-implementing toggles for traceback
+        emission and exit-code semantics. The Click adapter mutates these fields
+        once per process based on global command options.
+    What:
+        Stores the behavioral switches consulted by error printers and
+        exit-code helpers. Values are mutated in place so that successive calls
+        reuse the same configuration.
+    Fields:
+        traceback (bool): Enables stack-trace passthrough when ``True`` to aid
+            debugging without altering default UX for end users.
+        exit_code_style (Literal['errno', 'sysexits']): Selects the exit-code
+            mapping strategy, allowing consumers to opt into BSD ``sysexits``
+            values when shell scripts rely on them.
+        broken_pipe_exit_code (int): Exit code returned when a
+            ``BrokenPipeError`` occurs; defaults to ``141`` so pipelines can
+            detect truncated output.
+    Side Effects:
+        Mutations are process wide because :data:`config` exports a module-level
+        instance. Callers should restore values in tests to avoid leakage.
+    """
 
     traceback: bool = False
     exit_code_style: Literal["errno", "sysexits"] = "errno"
     broken_pipe_exit_code: int = 141
 
 
+#: Shared configuration singleton consulted by CLI orchestration helpers.
 config = _Config()
 
 
 class CliSignalError(RuntimeError):
-    """Base class for signal-triggered errors raised by CLI handlers."""
+    """Marker exception bridging OS signals with exit-code translation.
+
+    Why:
+        Provide a dedicated hierarchy so tests and callers can catch
+        signal-driven interruptions separately from generic runtime errors.
+    What:
+        Subclasses represent specific signals (SIGINT, SIGTERM, SIGBREAK) and
+        allow :func:`handle_cli_exception` to map them back to deterministic
+        exit codes.
+    Side Effects:
+        None. Instances carry no extra state beyond the chosen subclass.
+    """
 
 
 class SigIntInterrupt(CliSignalError):
-    """Raised when SIGINT (Ctrl+C) is received."""
+    """Raised when the process receives ``SIGINT`` (Ctrl+C).
+
+    Why:
+        Helps :func:`handle_cli_exception` distinguish user-initiated
+        interruptions from other runtime failures.
+    """
 
 
 class SigTermInterrupt(CliSignalError):
-    """Raised when SIGTERM is received."""
+    """Raised when the process receives ``SIGTERM`` (termination request).
+
+    Why:
+        Enables consistent exit-code mapping for orchestration systems that send
+        termination signals (e.g., Kubernetes, systemd).
+    """
 
 
 class SigBreakInterrupt(CliSignalError):
-    """Raised when SIGBREAK (Ctrl+Break on Windows) is received."""
+    """Raised when the process receives ``SIGBREAK`` on Windows consoles.
+
+    Why:
+        Allows Windows users to map Ctrl+Break to a deterministic exit code
+        instead of propagating a less descriptive error.
+    """
 
 
 @dataclass(slots=True)
 class SignalSpec:
-    """Describe how a signal should be translated into an exception and exit code."""
+    """Describe how to translate a low-level signal into CLI-facing behavior.
+
+    Why:
+        Capture signal metadata in a structured form so installers and
+        exception handlers agree on signum-to-exit-code mappings.
+    Fields:
+        signum (int): The numeric signal identifier to register with
+            :mod:`signal`.
+        exception (type[BaseException]): The exception type instantiated by the
+            handler so :func:`handle_cli_exception` can inspect the raised
+            value.
+        message (str): User-facing text echoed to stderr when the signal is
+            encountered.
+        exit_code (int): Numeric exit code returned to the operating system.
+    Side Effects:
+        None; instances are immutable dataclasses and safe to reuse.
+    """
 
     signum: int
     exception: type[BaseException]
@@ -69,18 +153,68 @@ class SignalSpec:
 
 
 class _Echo(Protocol):
+    """Protocol describing the echo interface expected by error handlers.
+
+    Why:
+        Allow tests to supply lightweight stand-ins for :func:`click.echo`
+        without importing Click.
+    """
+
     def __call__(self, message: str, *, err: bool = ...) -> None: ...  # pragma: no cover - structural typing
 
 
+#: Type alias for signal handlers compatible with :func:`signal.signal`.
 _Handler = Callable[[int, FrameType | None], None]
 
 
 def _default_echo(message: str, *, err: bool = True) -> None:
+    """Proxy to :func:`click.echo` used when callers do not supply one.
+
+    Why:
+        Keep :func:`handle_cli_exception` decoupled from Click while offering a
+        sensible default for stderr logging. Dependency injection makes the
+        helper testable without monkey-patching :mod:`click` globally.
+    Parameters:
+        message: Text to emit.
+        err: When ``True`` (default) the message targets stderr; Click falls back
+            to stdout otherwise.
+    Returns:
+        ``None``. The effect is purely the emitted text.
+    Side Effects:
+        Writes a newline-terminated string to stdout/stderr via Click's IO
+        abstraction.
+    Examples:
+        >>> from click.testing import CliRunner
+        >>> runner = CliRunner()
+        >>> @click.command()
+        ... def _cmd():
+        ...     _default_echo("hi", err=False)
+        >>> result = runner.invoke(_cmd)
+        >>> result.output.strip()
+        'hi'
+    """
+
     click.echo(message, err=err)
 
 
 def default_signal_specs() -> List[SignalSpec]:
-    """Return SignalSpec instances appropriate for the current platform."""
+    """Build the default list of signal specifications for the host platform.
+
+    Why:
+        Provide a single source of truth for signal-to-exit mappings so both
+        :func:`install_signal_handlers` and :func:`handle_cli_exception` behave
+        consistently on POSIX and Windows.
+    Returns:
+        ``list[SignalSpec]`` where each item represents a supported signal.
+        ``SIGINT`` is always present; ``SIGTERM``/``SIGBREAK`` are added when the
+        runtime exposes them.
+    Side Effects:
+        None. The list is newly constructed on each call.
+    Examples:
+        >>> specs = default_signal_specs()
+        >>> specs[0].exception is SigIntInterrupt
+        True
+    """
 
     specs: List[SignalSpec] = [
         SignalSpec(
@@ -114,6 +248,30 @@ def default_signal_specs() -> List[SignalSpec]:
 
 
 def _make_raise_handler(exc_type: type[BaseException]) -> _Handler:
+    """Wrap ``exc_type`` in a signal-compatible callable.
+
+    Why:
+        ``signal.signal`` expects a handler signature ``(signum, frame)``. By
+        generating one on demand we keep installation code concise and avoid
+        repeating the raising logic for every signal.
+    Parameters:
+        exc_type: Exception subclass to raise when the handler runs.
+    Returns:
+        Callable that ignores its inputs and raises ``exc_type`` immediately.
+    Side Effects:
+        None at creation time; the returned handler raises when invoked.
+    Examples:
+        >>> handler = _make_raise_handler(SigIntInterrupt)
+        >>> try:
+        ...     handler(signal.SIGINT, None)
+        ... except SigIntInterrupt:
+        ...     caught = True
+        ... else:
+        ...     caught = False
+        >>> caught
+        True
+    """
+
     def _handler(signo: int, frame: FrameType | None) -> None:  # pragma: no cover - just raises
         raise exc_type()
 
@@ -121,9 +279,25 @@ def _make_raise_handler(exc_type: type[BaseException]) -> _Handler:
 
 
 def install_signal_handlers(specs: Sequence[SignalSpec] | None = None) -> Callable[[], None]:
-    """Install signal handlers that translate signals into Python exceptions.
+    """Install signal handlers that re-raise as structured exceptions.
 
-    Returns a callable that restores the previous handlers when invoked.
+    Why:
+        Centralize signal wiring so CLI entry points can opt in to robust
+        interruption handling without duplicating boilerplate.
+    Parameters:
+        specs: Optional iterable of :class:`SignalSpec`. When omitted the
+            defaults from :func:`default_signal_specs` are used.
+    Returns:
+        Callable that, when executed, restores the previous signal handlers.
+    Side Effects:
+        Registers handlers with :mod:`signal` for each provided specification.
+        Handlers are process-wide; callers must invoke the returned restore
+        function to avoid leaking state.
+    Examples:
+        >>> restore = install_signal_handlers([])
+        >>> callable(restore)
+        True
+        >>> restore()  # nothing was installed, so this is a no-op
     """
 
     active_specs = list(default_signal_specs() if specs is None else specs)
@@ -154,7 +328,24 @@ def handle_cli_exception(
     signal_specs: Sequence[SignalSpec] | None = None,
     echo: _Echo | None = None,
 ) -> int:
-    """Convert an exception raised by a CLI into an exit code and side effects."""
+    """Convert an exception raised by a CLI into a deterministic exit code.
+
+    Why:
+        Keep ``click`` command invocations small by centralising how we surface
+        failures, map signals, and honour the global traceback toggle.
+    Parameters:
+        exc: Exception propagated by the command execution.
+        signal_specs: Optional custom signal specifications.
+        echo: Optional callable used to emit human-readable signal messages.
+    Returns:
+        Integer exit code suitable for :func:`sys.exit`.
+    Side Effects:
+        May write to stderr via ``echo``, call :func:`print_exception_message`,
+        or raise ``exc`` again when ``config.traceback`` is ``True``.
+    Examples:
+        >>> handle_cli_exception(ValueError("bad input"))
+        22
+    """
 
     specs = list(default_signal_specs() if signal_specs is None else signal_specs)
     echo_fn = echo if echo is not None else _default_echo
@@ -192,7 +383,36 @@ def run_cli(
     signal_specs: Sequence[SignalSpec] | None = None,
     install_signals: bool = True,
 ) -> int:
-    """Run a Click CLI with lib_cli_exit_tools wiring."""
+    """Execute a Click command with shared signal/error handling installed.
+
+    Why:
+        Guarantee that all entry points (console scripts, ``python -m``) share
+        the same policy for signal registration, exit-code derivation, and
+        stream flushing.
+    Parameters:
+        cli: Click command or group to execute.
+        argv: Optional sequence of arguments, excluding the program name.
+        prog_name: Overrides the program name shown in Click help/version.
+        signal_specs: Optional custom signal specifications.
+        install_signals: Skip signal wiring when ``False`` (useful for tests).
+    Returns:
+        Integer exit code suitable for :func:`sys.exit`.
+    Side Effects:
+        May install process-wide signal handlers, execute the command, flush
+        stdio, and emit output.
+    Examples:
+        >>> @click.command()
+        ... def _demo():
+        ...     click.echo("hi")
+        >>> import contextlib, io
+        >>> buffer = io.StringIO()
+        >>> with contextlib.redirect_stdout(buffer):
+        ...     result = run_cli(_demo, argv=[])
+        >>> result
+        0
+        >>> buffer.getvalue().strip()
+        'hi'
+    """
 
     specs = list(default_signal_specs() if signal_specs is None else signal_specs)
     restore = install_signal_handlers(specs) if install_signals else None
@@ -209,7 +429,22 @@ def run_cli(
 
 
 def get_system_exit_code(exc: BaseException) -> int:
-    """Return an integer exit code appropriate for the current platform."""
+    """Map an exception to an OS-appropriate exit status.
+
+    Why:
+        Provide a predictable fallback when Click or signal-specific handlers do
+        not supply an explicit exit code.
+    Parameters:
+        exc: Exception raised by application logic.
+    Returns:
+        Integer exit code honouring Windows ``winerror`` values, POSIX ``errno``
+        codes, or BSD ``sysexits`` depending on :data:`config`.
+    Side Effects:
+        None.
+    Examples:
+        >>> get_system_exit_code(ValueError("bad input"))
+        22
+    """
 
     if isinstance(exc, subprocess.CalledProcessError):
         try:
@@ -281,6 +516,22 @@ def get_system_exit_code(exc: BaseException) -> int:
 
 
 def _sysexits_mapping(exc: BaseException) -> int:
+    """Translate an exception into BSD ``sysexits`` semantics.
+
+    Why:
+        Provide shell-friendly exit codes when ``config.exit_code_style`` is set
+        to ``"sysexits"``.
+    Parameters:
+        exc: Exception raised by application logic.
+    Returns:
+        Integer drawn from the ``sysexits`` range (e.g., 64 for usage errors).
+    Side Effects:
+        None.
+    Examples:
+        >>> _sysexits_mapping(ValueError("bad"))
+        64
+    """
+
     if isinstance(exc, SystemExit):
         try:
             return int(exc.code)  # type: ignore[attr-defined]
@@ -311,7 +562,31 @@ def print_exception_message(
     length_limit: int = 500,
     stream: Optional[TextIO] = None,
 ) -> None:
-    """Print the current exception with optional traceback and truncated output."""
+    """Emit the active exception message and optional traceback to ``stream``.
+
+    Why:
+        Provide consistent, truncated error output when tracebacks are
+        suppressed. This keeps CLI UX tidy while still surfacing useful
+        information to the user.
+    Parameters:
+        trace_back: When ``True`` append the full traceback to the message.
+        length_limit: Maximum number of characters to emit.
+        stream: Target text stream; defaults to stderr.
+    Returns:
+        ``None``.
+    Side Effects:
+        Flushes stdout/stderr, reads :func:`sys.exc_info`, and writes to the
+        chosen stream. No output is produced if no exception is active.
+    Examples:
+        >>> import io
+        >>> try:
+        ...     raise ValueError("boom")
+        ... except ValueError:
+        ...     buf = io.StringIO()
+        ...     print_exception_message(trace_back=False, stream=buf)
+        ...     "ValueError: boom" in buf.getvalue()
+        True
+    """
 
     flush_streams()
 
@@ -338,6 +613,28 @@ def print_exception_message(
 
 
 def _print_output(exc_info: Any, attr: str, stream: Optional[TextIO] = None) -> None:
+    """Print captured subprocess output stored on an exception.
+
+    Why:
+        :class:`subprocess.CalledProcessError` instances hang on to ``stdout`` and
+        ``stderr`` attributes. Surfacing them helps users debug failing commands.
+    Parameters:
+        exc_info: Exception carrying potential ``stdout``/``stderr`` values.
+        attr: Attribute name to inspect (``"stdout"`` or ``"stderr"``).
+        stream: Target text stream; defaults to stderr.
+    Side Effects:
+        Writes decoded output to ``stream`` if present.
+    Examples:
+        >>> class _Exc:
+        ...     stdout = b"hello"
+        ...     stderr = None
+        >>> import io
+        >>> buf = io.StringIO()
+        >>> _print_output(_Exc(), "stdout", stream=buf)
+        >>> buf.getvalue().strip()
+        'STDOUT: hello'
+    """
+
     if stream is None:
         stream = sys.stderr
 
@@ -362,6 +659,20 @@ def _print_output(exc_info: Any, attr: str, stream: Optional[TextIO] = None) -> 
 
 
 def flush_streams() -> None:
+    """Best-effort flush of ``stdout`` and ``stderr``.
+
+    Why:
+        Prevent buffered output from being lost when the CLI terminates early,
+        especially after writing to streams during error handling.
+    Returns:
+        ``None``.
+    Side Effects:
+        Invokes ``flush`` on ``sys.stdout`` and ``sys.stderr``; suppresses
+        unexpected exceptions from non-standard stream objects.
+    Examples:
+        >>> flush_streams()
+    """
+
     try:
         sys.stdout.flush()
     except Exception:  # pragma: no cover - best effort

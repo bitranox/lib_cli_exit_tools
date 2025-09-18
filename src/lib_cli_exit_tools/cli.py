@@ -1,3 +1,17 @@
+"""Click-based CLI adapter for lib_cli_exit_tools.
+
+Purpose:
+    Provide the end-user command-line surface while delegating error-handling
+    and exit-code logic to :mod:`lib_cli_exit_tools.lib_cli_exit_tools`.
+Contents:
+    * :func:`cli` group exposing shared options.
+    * :func:`cli_info` subcommand reporting distribution metadata.
+    * :func:`main` entry point used by console scripts and ``python -m``.
+System Integration:
+    The CLI mutates :data:`lib_cli_exit_tools.config` based on the ``--traceback``
+    flag before handing execution off to :func:`lib_cli_exit_tools.run_cli`.
+"""
+
 from __future__ import annotations
 
 from typing import Optional, Sequence
@@ -7,6 +21,7 @@ import click
 from . import __init__conf__
 from . import lib_cli_exit_tools
 
+#: Consistent help flag aliases reused across all lib-cli-exit-tools commands.
 CLICK_CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])  # noqa: C408
 
 
@@ -24,7 +39,23 @@ CLICK_CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])  # noqa: C408
 )
 @click.pass_context
 def cli(ctx: click.Context, traceback: bool) -> None:
-    """Root CLI group. Stores global opts in context & tools.config."""
+    """Root Click group that primes shared configuration state.
+
+    Why:
+        Accept a single ``--traceback`` flag that determines whether downstream
+        helpers emit stack traces.
+    Parameters:
+        ctx: Click context object for the current invocation.
+        traceback: When ``True`` enables traceback output for subsequent commands.
+    Side Effects:
+        Mutates ``ctx.obj`` and :data:`lib_cli_exit_tools.config.traceback`.
+    Examples:
+        >>> from click.testing import CliRunner
+        >>> runner = CliRunner()
+        >>> result = runner.invoke(cli, ["--help"])
+        >>> result.exit_code == 0
+        True
+    """
     ctx.ensure_object(dict)
     ctx.obj["traceback"] = traceback
     lib_cli_exit_tools.config.traceback = traceback
@@ -32,12 +63,45 @@ def cli(ctx: click.Context, traceback: bool) -> None:
 
 @cli.command("info", context_settings=CLICK_CONTEXT_SETTINGS)
 def cli_info() -> None:
-    """Print project information."""
+    """Display package metadata sourced from :mod:`importlib.metadata`.
+
+    Why:
+        Offer a zero-dependency way for users to confirm the installed version
+        and provenance of the CLI.
+    Side Effects:
+        Writes formatted metadata to stdout.
+    Examples:
+        >>> from click.testing import CliRunner
+        >>> runner = CliRunner()
+        >>> result = runner.invoke(cli, ["info"])
+        >>> "Info for" in result.output
+        True
+    """
     __init__conf__.print_info()
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
-    """Entrypoint returning an int exit code via shared run_cli helper."""
+    """Run the CLI with :func:`lib_cli_exit_tools.run_cli` wiring.
+
+    Why:
+        Serve as the target for console scripts and ``python -m`` execution by
+        returning an integer exit code instead of exiting directly.
+    Parameters:
+        argv: Optional iterable of arguments passed to Click (without program name).
+    Returns:
+        Integer exit code from :func:`lib_cli_exit_tools.run_cli`.
+    Side Effects:
+        Delegates to Click and may write to stdout/stderr.
+    Examples:
+        >>> import contextlib, io
+        >>> buffer = io.StringIO()
+        >>> with contextlib.redirect_stdout(buffer):
+        ...     exit_code = main(["info"])
+        >>> exit_code
+        0
+        >>> "Info for" in buffer.getvalue()
+        True
+    """
     return lib_cli_exit_tools.run_cli(
         cli,
         argv=list(argv) if argv is not None else None,

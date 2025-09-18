@@ -1,5 +1,17 @@
+"""Public re-export surface for lib_cli_exit_tools helpers.
+
+Purpose:
+    Provide a stable import path for consumers (`from lib_cli_exit_tools import run_cli`).
+Contents:
+    Re-exports signal helpers, configuration, and CLI orchestration functions.
+System Integration:
+    Keeps the package interface aligned with the module reference documented in
+    ``docs/system-design/reference.md`` while hiding implementation modules.
+"""
+
 from __future__ import annotations
 
+# Re-export core helpers so consumers avoid deep imports.
 from .lib_cli_exit_tools import (
     CliSignalError,
     SigBreakInterrupt,
@@ -16,6 +28,7 @@ from .lib_cli_exit_tools import (
     run_cli,
 )
 
+#: Public API surface guaranteed by semantic versioning.
 __all__ = [
     "config",
     "get_system_exit_code",
