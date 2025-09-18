@@ -15,9 +15,6 @@ Complete
 - `pyproject.toml` (`[project]` metadata and entry points)
 - `tests/test_exit_tools.py`, `tests/test_cli.py`, `tests/test_cli_extra.py`, `tests/test_extend_cli.py`, `tests/test_lib_extra.py`
 
-## Problem Statement
-The `lib_cli_exit_tools` package ships reusable helpers for consistent CLI exit handling, but its modules and functions were not documented for contributors. Lack of centralized documentation makes it difficult for new maintainers to understand the flow between signal handling, Click integration, configuration surfaces, and metadata access.
-
 ## Solution Overview
 This document catalogs every module, class, and function inside `src/lib_cli_exit_tools`, explaining responsibilities, inputs, outputs, and file locations. The goal is to provide maintainers with an at-a-glance reference that clarifies how configuration, signal handling, and Click orchestration interact without changing the existing runtime behavior.
 

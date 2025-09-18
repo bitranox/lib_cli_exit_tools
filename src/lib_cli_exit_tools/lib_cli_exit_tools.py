@@ -338,13 +338,14 @@ def handle_cli_exception(
         signal_specs: Optional custom signal specifications.
         echo: Optional callable used to emit human-readable signal messages.
     Returns:
-        Integer exit code suitable for :func:`sys.exit`.
+        Integer exit code suitable for :func:`sys.exit` (values differ between
+        POSIX and Windows because we mirror platform-specific errno codes).
     Side Effects:
         May write to stderr via ``echo``, call :func:`print_exception_message`,
         or raise ``exc`` again when ``config.traceback`` is ``True``.
     Examples:
-        >>> handle_cli_exception(ValueError("bad input"))
-        22
+        >>> handle_cli_exception(ValueError("bad input")) in {22, 87}
+        True
     """
 
     specs = list(default_signal_specs() if signal_specs is None else signal_specs)
@@ -439,11 +440,12 @@ def get_system_exit_code(exc: BaseException) -> int:
     Returns:
         Integer exit code honouring Windows ``winerror`` values, POSIX ``errno``
         codes, or BSD ``sysexits`` depending on :data:`config`.
+        (POSIX maps ``ValueError`` to 22, while Windows maps it to 87.)
     Side Effects:
         None.
     Examples:
-        >>> get_system_exit_code(ValueError("bad input"))
-        22
+        >>> get_system_exit_code(ValueError("bad input")) in {22, 87}
+        True
     """
 
     if isinstance(exc, subprocess.CalledProcessError):
