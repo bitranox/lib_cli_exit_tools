@@ -42,6 +42,9 @@ def main(remote: str, retries: int, retry_wait: float) -> None:
     # Ensure dev tools for build/test flows (optional)
     bootstrap_dev()
 
+    click.echo("[release] Sync packaging with pyproject before checks")
+    sync_packaging()
+
     # Run local checks
     run(["python", "scripts/test.py"])  # type: ignore[list-item]
 

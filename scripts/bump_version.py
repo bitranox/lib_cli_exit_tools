@@ -8,6 +8,7 @@ from typing import Any, Dict, Tuple, Optional, cast
 import json
 import urllib.request
 import hashlib
+import base64
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -167,6 +168,75 @@ def _pypi_sdist_info(name: str, version: str) -> Tuple[str | None, str | None]:
     return None, None
 
 
+def _extract_floor_version(spec: str) -> str | None:
+    """Return the lower-bound version from a specifier when obvious."""
+
+    for pattern in (r">=\s*([0-9][^,; ]*)", r"~=\s*([0-9][^,; ]*)"):
+        m = re.search(pattern, spec)
+        if m:
+            return m.group(1)
+    return None
+
+
+def _preferred_dependency_version(name: str, spec: str) -> str | None:
+    """Choose a deterministic version to vendor for a dependency."""
+
+    pinned = _pinned_version(spec)
+    if pinned:
+        return pinned
+    floor = _extract_floor_version(spec)
+    if floor:
+        return floor
+    return _pypi_latest_version(name)
+
+
+def _pypi_wheel_info(name: str, version: str) -> Tuple[str | None, str | None]:
+    """Return (wheel_url, nix_hash) for a PyPI wheel release."""
+
+    try:
+        url = f"https://pypi.org/pypi/{name}/{version}/json"
+        with urllib.request.urlopen(url, timeout=10) as resp:  # nosec - metadata only
+            data = json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        return None, None
+
+    def _select_wheel(files: list[dict[str, Any]]) -> Optional[dict[str, Any]]:
+        chosen: Optional[dict[str, Any]] = None
+        for file in files:
+            if file.get("packagetype") != "bdist_wheel":
+                continue
+            filename = file.get("filename", "")
+            if not chosen:
+                chosen = file
+            if filename.endswith("py3-none-any.whl"):
+                return file
+        return chosen
+
+    candidates = data.get("urls", [])
+    selected = _select_wheel(candidates)
+    if not selected:
+        releases = data.get("releases", {}).get(version, [])
+        selected = _select_wheel(releases) if isinstance(releases, list) else None
+    if not selected:
+        return None, None
+
+    sha_hex = selected.get("digests", {}).get("sha256")
+    if not sha_hex:
+        return selected.get("url"), None
+    digest_b64 = base64.b64encode(bytes.fromhex(sha_hex)).decode("ascii")
+    return selected.get("url"), f"sha256-{digest_b64}"
+
+
+def _nix_replace_vendor_field(text: str, pname: str, field: str, value: str) -> tuple[str, bool]:
+    pattern = rf'(pname\s*=\s*"{re.escape(pname)}";[\s\S]*?\b{field}\s*=\s*")([^"\n]+)(";)'
+
+    def repl(match: re.Match[str]) -> str:
+        return f"{match.group(1)}{value}{match.group(3)}"
+
+    updated, count = re.subn(pattern, repl, text, count=1)
+    return updated, bool(count)
+
+
 def _update_conda_recipe(version: str, path: Path) -> None:
     try:
         text = path.read_text(encoding="utf-8")
@@ -278,7 +348,7 @@ def _brew_set_python_dep(text: str, min_py: str | None) -> tuple[str, bool]:
     return new_text, new_text != text
 
 
-def _brew_latest_version(name: str) -> str | None:
+def _pypi_latest_version(name: str) -> str | None:
     try:
         with urllib.request.urlopen(f"https://pypi.org/pypi/{name}/json", timeout=10) as resp:
             info = json.loads(resp.read().decode("utf-8"))
@@ -329,7 +399,7 @@ def _update_brew_formula(version: str, path: Path) -> None:
     for name, spec in deps.items():
         if name.lower() == "python":
             continue
-        ver = _pinned_version(spec) or _brew_latest_version(name)
+        ver = _pinned_version(spec) or _pypi_latest_version(name)
         if not ver:
             continue
         sdist_url, sha256 = _pypi_sdist_info(name, ver)
@@ -345,6 +415,8 @@ def _update_nix_flake(version: str, path: Path) -> None:
     except FileNotFoundError:
         return
 
+    deps = _read_pyproject_deps(Path("pyproject.toml"))
+
     # Replace version = "X.Y.Z";
     # Update package block version only for the configured pname from pyproject
     def repl_pkg_block(m: re.Match[str]) -> str:
@@ -359,7 +431,7 @@ def _update_nix_flake(version: str, path: Path) -> None:
     )
     # Replace example rev = "vX.Y.Z"
     t2 = re.sub(r"(rev\s*=\s*\")v[0-9]+\.[0-9]+\.[0-9]+(\")", rf"\1v{version}\2", t1)
-    changed = t2 != text
+    base_changed = t2 != text
     text = t2
     # Sync python package set (python312Packages -> python310Packages for >=3.10) and interpreter in devShell
     req = _read_requires_python(Path("pyproject.toml"))
@@ -380,19 +452,53 @@ def _update_nix_flake(version: str, path: Path) -> None:
         text3b = re.sub(r"(pkgs\.python)([0-9]{3})\b", repl_dev_python, text3)
         if text3b != text:
             text = text3b
-            changed = True
-    if changed:
-        # Also sync propagatedBuildInputs in the library package block (not the hatchling vendor)
-        deps = _read_pyproject_deps(Path("pyproject.toml"))
-        pkgs_list = " ".join(sorted({f"pypkgs.{k.replace('-', '_')}" for k in deps.keys() if k.lower() != "python"}))
+            base_changed = True
 
-        def _update_pkg_block(m: re.Match[str]) -> str:
-            block = m.group(0)
-            return re.sub(r"propagatedBuildInputs\s*=\s*\[[^\]]*\];", f"propagatedBuildInputs = [ {pkgs_list} ];", block, flags=re.S)
+    pkgs_list = " ".join(sorted({f"pypkgs.{k.replace('-', '_')}" for k in deps.keys() if k.lower() != "python"}))
+    packages_changed = False
 
-        text = re.sub(r"packages\.default\s*=\s*pypkgs\.buildPythonPackage\s*\{[\s\S]*?\}\s*;", _update_pkg_block, text)
+    def _update_pkg_block(m: re.Match[str]) -> str:
+        nonlocal packages_changed
+        block = m.group(0)
+        new_block = re.sub(r"propagatedBuildInputs\s*=\s*\[[^\]]*\];", f"propagatedBuildInputs = [ {pkgs_list} ];", block, flags=re.S)
+        if new_block != block:
+            packages_changed = True
+        return new_block
+
+    text = re.sub(r"packages\.default\s*=\s*pypkgs\.buildPythonPackage\s*\{[\s\S]*?\}\s*;", _update_pkg_block, text)
+    if packages_changed:
+        base_changed = True
+
+    vendor_updates: list[str] = []
+    vendor_pattern = re.compile(r"pypkgs\.buildPythonPackage\s+rec\s*\{[\s\S]*?pname\s*=\s*\"([^\"]+)\"", re.S)
+    vendor_names = {match.group(1) for match in vendor_pattern.finditer(text)}
+
+    for vendor in sorted(vendor_names):
+        key = vendor.lower()
+        spec = deps.get(key)
+        if not spec:
+            continue
+        desired_version = _preferred_dependency_version(vendor, spec)
+        if not desired_version:
+            continue
+        text, version_changed = _nix_replace_vendor_field(text, vendor, "version", desired_version)
+        hash_changed = False
+        wheel_url, nix_hash = _pypi_wheel_info(vendor, desired_version)
+        if nix_hash:
+            text, hash_changed = _nix_replace_vendor_field(text, vendor, "hash", nix_hash)
+            if not hash_changed:
+                text, hash_changed = _nix_replace_vendor_field(text, vendor, "sha256", nix_hash)
+        if version_changed or hash_changed:
+            vendor_updates.append(f"{vendor}={desired_version}")
+
+    changed_any = base_changed or bool(vendor_updates)
+
+    if changed_any:
         path.write_text(text, encoding="utf-8")
-        print(f"[bump] nix flake: version/rev/python/deps -> {version}{' / ' + (min_py or '') if min_py else ''}")
+        if base_changed:
+            print(f"[bump] nix flake: version/rev/python/deps -> {version}{' / ' + (min_py or '') if min_py else ''}")
+        if vendor_updates:
+            print(f"[bump] nix flake: vendored {'; '.join(vendor_updates)}")
 
 
 def main() -> int:

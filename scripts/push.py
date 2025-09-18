@@ -12,6 +12,9 @@ from scripts._utils import git_branch, run, sync_packaging  # noqa: E402
 @click.command(help="Run tests, sync packaging, commit changes if any, and push current branch")
 @click.option("--remote", default="origin", show_default=True)
 def main(remote: str) -> None:
+    click.echo("[push] Sync packaging with pyproject before checks")
+    sync_packaging()
+
     click.echo("[push] Running local checks (scripts/test.py)")
     run(["python", "scripts/test.py"])  # type: ignore[list-item]
 
