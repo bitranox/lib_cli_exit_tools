@@ -3,7 +3,7 @@ class LibCliExitTools < Formula
 
   desc "CLI exit handling helpers: clean signals, exit codes, and error printing"
   homepage "https://github.com/bitranox/lib_cli_exit_tools"
-  url "https://github.com/bitranox/lib_cli_exit_tools/archive/refs/tags/v1.1.0.tar.gz"
+  url "https://github.com/bitranox/lib_cli_exit_tools/archive/refs/tags/v1.1.1.tar.gz"
 k3cc316e7d0b09dd79e617cb3e91b14ee414b7e6695b108a326d9d3ccd08dd9"
   license "MIT"
 
