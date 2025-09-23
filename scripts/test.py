@@ -22,6 +22,7 @@ from scripts._utils import (  # noqa: E402
 
 PROJECT = get_project_metadata()
 COVERAGE_TARGET = PROJECT.coverage_source
+CODECOV_COMMIT_MESSAGE = "test: auto commit before Codecov upload"
 _TOML_MODULE: ModuleType | None = None
 
 
@@ -113,6 +114,7 @@ def main(coverage: str, verbose: bool) -> None:
 
     upload_result: RunResult | None = None
     uploaded = False
+    commit_sha: str | None = None
 
     if Path("coverage.xml").exists():
         try:
@@ -121,63 +123,67 @@ def main(coverage: str, verbose: bool) -> None:
             click.echo(f"[git] {exc}", err=True)
             click.echo("[git] Aborting Codecov upload")
             return
-        click.echo(f"[git] Prepared commit {commit_sha} for Codecov upload")
-        click.echo("Uploading coverage to Codecov")
-        codecov_name = f"local-{platform.system()}-{platform.python_version()}"
-        if cmd_exists("codecov"):
-            upload_result = _run(
-                [
-                    "codecov",
-                    "-f",
-                    "coverage.xml",
-                    "-F",
-                    "local",
-                    "-n",
-                    codecov_name,
-                ],
-                check=False,
-                capture=False,
-                label="codecov-upload-cli",
-            )
-        else:
-            token = os.getenv("CODECOV_TOKEN")
-            download = _run(
-                ["curl", "-s", "https://codecov.io/bash", "-o", "codecov.sh"],
-                capture=False,
-                label="codecov-download",
-            )
-            if download.code == 0:
-                upload_cmd = [
-                    "bash",
-                    "codecov.sh",
-                    "-f",
-                    "coverage.xml",
-                    "-F",
-                    "local",
-                    "-n",
-                    codecov_name,
-                ]
-                if token:
-                    upload_cmd.extend(["-t", token])
+
+        try:
+            click.echo(f"[git] Prepared commit {commit_sha} for Codecov upload")
+            click.echo("Uploading coverage to Codecov")
+            codecov_name = f"local-{platform.system()}-{platform.python_version()}"
+            if cmd_exists("codecov"):
                 upload_result = _run(
-                    upload_cmd,
+                    [
+                        "codecov",
+                        "-f",
+                        "coverage.xml",
+                        "-F",
+                        "local",
+                        "-n",
+                        codecov_name,
+                    ],
                     check=False,
                     capture=False,
-                    label="codecov-upload-fallback",
+                    label="codecov-upload-cli",
                 )
             else:
-                click.echo("[codecov] failed to download uploader", err=True)
-            try:
-                Path("codecov.sh").unlink()
-            except FileNotFoundError:
-                pass
+                token = os.getenv("CODECOV_TOKEN")
+                download = _run(
+                    ["curl", "-s", "https://codecov.io/bash", "-o", "codecov.sh"],
+                    capture=False,
+                    label="codecov-download",
+                )
+                if download.code == 0:
+                    upload_cmd = [
+                        "bash",
+                        "codecov.sh",
+                        "-f",
+                        "coverage.xml",
+                        "-F",
+                        "local",
+                        "-n",
+                        codecov_name,
+                    ]
+                    if token:
+                        upload_cmd.extend(["-t", token])
+                    upload_result = _run(
+                        upload_cmd,
+                        check=False,
+                        capture=False,
+                        label="codecov-upload-fallback",
+                    )
+                else:
+                    click.echo("[codecov] failed to download uploader", err=True)
+                try:
+                    Path("codecov.sh").unlink()
+                except FileNotFoundError:
+                    pass
 
-        if upload_result is not None:
-            if upload_result.code == 0:
-                click.echo("[codecov] upload succeeded")
-                uploaded = True
-            else:
-                click.echo(f"[codecov] upload failed (exit {upload_result.code})")
+            if upload_result is not None:
+                if upload_result.code == 0:
+                    click.echo("[codecov] upload succeeded")
+                    uploaded = True
+                else:
+                    click.echo(f"[codecov] upload failed (exit {upload_result.code})")
+        finally:
+            _cleanup_codecov_commit(commit_sha)
     else:
         click.echo("Skipping Codecov upload: coverage.xml not found")
 
@@ -221,21 +227,7 @@ def _commit_before_upload() -> str:
 
     click.echo("[git] Creating local commit before Codecov upload")
 
-    add_proc = subprocess.run(
-        ["git", "add", "-A"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if add_proc.returncode != 0:
-        message = add_proc.stderr.strip() or add_proc.stdout.strip() or "git add failed"
-        raise RuntimeError(message)
-    if add_proc.stdout.strip():
-        click.echo(add_proc.stdout.strip())
-    if add_proc.stderr.strip():
-        click.echo(add_proc.stderr.strip(), err=True)
-
-    commit_message = "test: auto commit before Codecov upload"
+    commit_message = CODECOV_COMMIT_MESSAGE
     commit_proc = subprocess.run(
         ["git", "commit", "--allow-empty", "-m", commit_message],
         capture_output=True,
@@ -263,6 +255,63 @@ def _commit_before_upload() -> str:
     commit_sha = rev_proc.stdout.strip()
     click.echo(f"[git] Created commit {commit_sha}")
     return commit_sha
+
+
+def _cleanup_codecov_commit(commit_sha: str | None) -> None:
+    """Remove the helper commit when it still sits at HEAD with the expected message."""
+
+    if not commit_sha:
+        return
+
+    head_proc = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if head_proc.returncode != 0:
+        message = head_proc.stderr.strip() or "failed to resolve HEAD during cleanup"
+        click.echo(f"[git] Cleanup skipped: {message}", err=True)
+        return
+
+    head_sha = head_proc.stdout.strip()
+    if head_sha != commit_sha:
+        click.echo("[git] Cleanup skipped: HEAD advanced past Codecov commit")
+        return
+
+    message_proc = subprocess.run(
+        ["git", "log", "-1", "--pretty=%B"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if message_proc.returncode != 0:
+        note = message_proc.stderr.strip() or "unable to read commit message"
+        click.echo(f"[git] Cleanup skipped: {note}", err=True)
+        return
+
+    commit_message = message_proc.stdout.strip()
+    if commit_message != CODECOV_COMMIT_MESSAGE:
+        click.echo("[git] Cleanup skipped: top commit message does not match helper")
+        return
+
+    reset_proc = subprocess.run(
+        ["git", "reset", "--soft", "HEAD~1"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if reset_proc.returncode != 0:
+        message = reset_proc.stderr.strip() or reset_proc.stdout.strip() or "git reset failed"
+        click.echo(f"[git] Cleanup failed: {message}", err=True)
+        return
+
+    if reset_proc.stdout.strip():
+        click.echo(reset_proc.stdout.strip())
+    if reset_proc.stderr.strip():
+        click.echo(reset_proc.stderr.strip(), err=True)
+
+    click.echo("[git] Removed temporary Codecov commit")
 
 
 def _ensure_codecov_token() -> None:
