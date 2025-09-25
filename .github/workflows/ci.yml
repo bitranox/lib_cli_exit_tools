@@ -31,6 +31,7 @@ jobs:
         shell: bash
         run: |
           python -m pip install --upgrade pip
+          python -m pip install --upgrade click rich rich-click
           pip install -e .[dev]
       - name: Run full test suite (lint, types, tests, coverage, codecov)
         shell: bash
