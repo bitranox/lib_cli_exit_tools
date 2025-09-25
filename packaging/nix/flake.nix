@@ -31,11 +31,11 @@
         };
         clickVendor = pypkgs.buildPythonPackage rec {
           pname = "click";
-          version = "8.1";
+          version = "8.3.0";
           format = "wheel";
           src = pkgs.fetchurl {
-            url = "https://files.pythonhosted.org/packages/86/3e/3a523bdd24510288b1b850428e01172116a29268378b1da9a8d0b894a115/click-8.1.0-py3-none-any.whl";
-            sha256 = "sha256-GaS6pk2pJMXgzYiauo6UfygDCfGizglHo+OnvLfMctY=";
+            url = "https://files.pythonhosted.org/packages/db/d3/9dcc0f5797f070ec8edf30fbadfb200e71d9db6b84d211e3b2085a7589a0/click-8.3.0-py3-none-any.whl";
+            sha256 = "sha256-m58oUwLG4wZPQzDAXwW4GUWyo5VEJ5ND5ufF8nqbrdw=";
           };
           doCheck = false;
         };
