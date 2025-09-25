@@ -138,9 +138,9 @@ The package is the core runtime library for handling CLI exits within the broade
 **Location:** `lib_cli_exit_tools/lib_cli_exit_tools.py`
 
 #### Function: print_exception_message
-**Purpose:** Display the current exception message (and optional traceback) with output truncation safeguards.  
+**Purpose:** Display the current exception message (and optional rich-formatted traceback) with output truncation safeguards.  
 **Input:** `trace_back`, `length_limit`, optional `stream`.  
-**Output:** Writes formatted error details to the target stream; flushes stdout/stderr.  
+**Output:** Writes formatted error details to the target stream using a `rich` console and flushes stdout/stderr.  
 **Location:** `lib_cli_exit_tools/lib_cli_exit_tools.py`
 
 #### Function: _print_output

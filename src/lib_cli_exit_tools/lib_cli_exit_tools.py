@@ -25,12 +25,15 @@ import os
 import signal
 import subprocess
 import sys
-import traceback
 from dataclasses import dataclass
 from types import FrameType
 from typing import Any, Callable, List, Literal, Optional, Protocol, Sequence, TextIO
 
 import rich_click as click
+from rich_click import rich_click as rich_config
+from rich.console import Console
+from rich.text import Text
+from rich.traceback import Traceback
 
 __all__ = [
     "config",
@@ -559,6 +562,33 @@ def _sysexits_mapping(exc: BaseException) -> int:
     return 1
 
 
+def _build_console(stream: Optional[TextIO] = None) -> Console:
+    """Construct a Rich console that mirrors rich-click global settings.
+
+    Why:
+        Avoid duplicating console configuration whenever we need to emit
+        coloured output, ensuring help and error styling stay consistent.
+    Parameters:
+        stream: Optional target stream; defaults to :data:`sys.stderr`.
+    Returns:
+        Configured :class:`rich.console.Console` instance.
+    Side Effects:
+        None.
+    Examples:
+        >>> console = _build_console()
+        >>> isinstance(console, Console)
+        True
+    """
+
+    target_stream = stream or sys.stderr
+    return Console(
+        file=target_stream,
+        force_terminal=rich_config.FORCE_TERMINAL,
+        color_system=rich_config.COLOR_SYSTEM,
+        soft_wrap=True,
+    )
+
+
 def print_exception_message(
     trace_back: bool = config.traceback,
     length_limit: int = 500,
@@ -568,11 +598,12 @@ def print_exception_message(
 
     Why:
         Provide consistent, truncated error output when tracebacks are
-        suppressed. This keeps CLI UX tidy while still surfacing useful
-        information to the user.
+        suppressed while presenting syntax-highlighted tracebacks for
+        debugging when requested.
     Parameters:
-        trace_back: When ``True`` append the full traceback to the message.
-        length_limit: Maximum number of characters to emit.
+        trace_back: When ``True`` render a Rich traceback; otherwise emit a
+            single-line summary in red.
+        length_limit: Maximum number of characters to emit for summary output.
         stream: Target text stream; defaults to stderr.
     Returns:
         ``None``.
@@ -592,25 +623,36 @@ def print_exception_message(
 
     flush_streams()
 
-    if stream is None:
-        stream = sys.stderr
+    target_stream = stream or sys.stderr
 
     exc_info = sys.exc_info()[1]
     if exc_info is None:
         return
 
+    _print_output(exc_info, "stdout", target_stream)
+    _print_output(exc_info, "stderr", target_stream)
+
+    console = _build_console(target_stream)
+
     if trace_back:
-        exc_info_msg = "Traceback Information:\n" + traceback.format_exc()
+        tb_renderable = Traceback.from_exception(
+            type(exc_info),
+            exc_info,
+            exc_info.__traceback__,
+            show_locals=False,
+        )
+        console.print(tb_renderable)
     else:
-        exc_info_msg = f"{type(exc_info).__name__}: {exc_info}"
+        message = Text(
+            f"{type(exc_info).__name__}: {exc_info}",
+            style="bold red",
+        )
+        if len(message.plain) > length_limit:
+            truncated = f"{message.plain[:length_limit]} ... [TRUNCATED at {length_limit} characters]"
+            message = Text(truncated, style="bold red")
+        console.print(message)
 
-    if len(exc_info_msg) > length_limit:
-        exc_info_msg = f"{exc_info_msg[:length_limit]} ...[TRUNCATED at {length_limit} characters]"
-
-    _print_output(exc_info, "stdout", stream)
-    _print_output(exc_info, "stderr", stream)
-
-    print(exc_info_msg, file=stream)
+    console.file.flush()
     flush_streams()
 
 

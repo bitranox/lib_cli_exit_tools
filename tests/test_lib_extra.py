@@ -52,7 +52,7 @@ def test_print_exception_message_traceback_and_truncate() -> None:
     except Exception:
         print_exception_message(True, length_limit=40, stream=buf)
     out = buf.getvalue()
-    assert "Traceback Information:" in out
+    assert "Traceback (most recent call last)" in out
 
     # Trigger truncation branch (traceback False) with tight limit
     buf = io.StringIO()
