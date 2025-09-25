@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.0] - 2025-09-25
+
+- colored traceback
+
 ## [1.2.0] - 2025-09-25
 
 - use rich-click instead of click, minor fixes
