@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.2.0] - 2025-09-25
+
+- use rich-click instead of click, minor fixes
+
 ## [1.1.1] - 2025-09-18
 
 - Documentation and doctest updates
