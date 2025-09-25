@@ -64,6 +64,40 @@ def test_print_exception_message_traceback_and_truncate() -> None:
     assert "[TRUNCATED" in out
 
 
+def test_print_exception_message_force_color(monkeypatch: pytest.MonkeyPatch) -> None:
+    import lib_cli_exit_tools.lib_cli_exit_tools as tools
+
+    calls: dict[str, object] = {}
+
+    class _DummyConsole:
+        def __init__(self, *, file, force_terminal, color_system, soft_wrap):
+            calls["force_terminal"] = force_terminal
+            calls["color_system"] = color_system
+            calls["soft_wrap"] = soft_wrap
+            self.file = file
+
+        def print(self, renderable) -> None:  # pragma: no cover - behaviour mocked
+            calls["renderable"] = renderable
+
+    def _fake_traceback(*_args, **_kwargs):
+        calls["traceback_called"] = True
+        return "traceback"
+
+    buf = io.StringIO()
+    monkeypatch.setattr(tools.config, "traceback_force_color", True, raising=False)
+    monkeypatch.setattr(tools, "Console", _DummyConsole, raising=False)
+    monkeypatch.setattr(tools.Traceback, "from_exception", _fake_traceback, raising=False)
+
+    try:
+        raise ValueError("boom")
+    except ValueError:
+        tools.print_exception_message(True, stream=buf)
+
+    assert calls.get("traceback_called") is True
+    assert calls.get("force_terminal") is True
+    assert calls.get("color_system") == "auto"
+
+
 def test_print_output_defaults_to_stderr_and_bytes(capsys: pytest.CaptureFixture[str]) -> None:
     from lib_cli_exit_tools import lib_cli_exit_tools as mod
 

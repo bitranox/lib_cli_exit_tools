@@ -6,7 +6,7 @@ Contents:
     Re-exports signal helpers, configuration, and CLI orchestration functions.
 System Integration:
     Keeps the package interface aligned with the module reference documented in
-    ``docs/system-design/reference.md`` while hiding implementation modules.
+    ``docs/system-design/module_reference.md`` while hiding implementation modules.
 """
 
 from __future__ import annotations

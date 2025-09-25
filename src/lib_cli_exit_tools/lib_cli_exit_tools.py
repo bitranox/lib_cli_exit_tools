@@ -73,6 +73,8 @@ class _Config:
         broken_pipe_exit_code (int): Exit code returned when a
             ``BrokenPipeError`` occurs; defaults to ``141`` so pipelines can
             detect truncated output.
+        traceback_force_color (bool): Force Rich to emit ANSI-coloured
+            tracebacks even when stdout/stderr are not detected as TTYs.
     Side Effects:
         Mutations are process wide because :data:`config` exports a module-level
         instance. Callers should restore values in tests to avoid leakage.
@@ -81,6 +83,7 @@ class _Config:
     traceback: bool = False
     exit_code_style: Literal["errno", "sysexits"] = "errno"
     broken_pipe_exit_code: int = 141
+    traceback_force_color: bool = False
 
 
 #: Shared configuration singleton consulted by CLI orchestration helpers.
@@ -562,7 +565,12 @@ def _sysexits_mapping(exc: BaseException) -> int:
     return 1
 
 
-def _build_console(stream: Optional[TextIO] = None) -> Console:
+def _build_console(
+    stream: Optional[TextIO] = None,
+    *,
+    force_terminal: bool | None = None,
+    color_system: str | None = None,
+) -> Console:
     """Construct a Rich console that mirrors rich-click global settings.
 
     Why:
@@ -570,6 +578,10 @@ def _build_console(stream: Optional[TextIO] = None) -> Console:
         coloured output, ensuring help and error styling stay consistent.
     Parameters:
         stream: Optional target stream; defaults to :data:`sys.stderr`.
+        force_terminal: Explicit override for Rich's terminal detection. When
+            ``None`` the global rich-click flag is used.
+        color_system: Optional override for the Rich colour system. When
+            ``None`` the rich-click default is reused.
     Returns:
         Configured :class:`rich.console.Console` instance.
     Side Effects:
@@ -581,10 +593,12 @@ def _build_console(stream: Optional[TextIO] = None) -> Console:
     """
 
     target_stream = stream or sys.stderr
+    force_flag = rich_config.FORCE_TERMINAL if force_terminal is None else force_terminal
+    color_flag = rich_config.COLOR_SYSTEM if color_system is None else color_system
     return Console(
         file=target_stream,
-        force_terminal=rich_config.FORCE_TERMINAL,
-        color_system=rich_config.COLOR_SYSTEM,
+        force_terminal=force_flag,
+        color_system=color_flag,
         soft_wrap=True,
     )
 
@@ -605,6 +619,8 @@ def print_exception_message(
             single-line summary in red.
         length_limit: Maximum number of characters to emit for summary output.
         stream: Target text stream; defaults to stderr.
+            Colour output honours :data:`config.traceback_force_color`, forcing
+            ANSI styling when enabled even if Rich detects a non-TTY stream.
     Returns:
         ``None``.
     Side Effects:
@@ -632,7 +648,13 @@ def print_exception_message(
     _print_output(exc_info, "stdout", target_stream)
     _print_output(exc_info, "stderr", target_stream)
 
-    console = _build_console(target_stream)
+    force_terminal = True if config.traceback_force_color else None
+    color_system = "auto" if config.traceback_force_color else None
+    console = _build_console(
+        target_stream,
+        force_terminal=force_terminal,
+        color_system=color_system,
+    )
 
     if trace_back:
         tb_renderable = Traceback.from_exception(
