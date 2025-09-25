@@ -19,93 +19,11 @@ Small helpers for robust CLI exit handling:
 
 ## Install
 
-Pick one of the options below. All methods register the `lib_cli_exit_tools`, `cli-exit-tools`, and `lib-cli-exit-tools` commands on your PATH.
-
-### 0) PyPI (latest release)
-
 ```bash
 pip install lib_cli_exit_tools
-# Pin to the current release if you need reproducibility
-pip install "lib_cli_exit_tools==1.1.0"
-# Upgrade to the newest release later
-pip install --upgrade lib_cli_exit_tools
 ```
 
-### 1) Standard virtualenv (pip)
-
-```bash
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\\Scripts\\activate
-pip install -e .[dev]       # dev install
-# or for runtime only:
-pip install .
-```
-
-### 2) Per-user (no venv)
-
-```bash
-pip install --user .
-```
-
-Note: respects PEP 668; avoid on system Python if “externally managed”. Ensure `~/.local/bin` (POSIX) is on PATH.
-
-### 3) pipx (isolated, recommended for end users)
-
-```bash
-pipx install .
-pipx upgrade lib_cli_exit_tools
-# From Git tag/commit:
-pipx install "git+https://github.com/bitranox/lib_cli_exit_tools@v1.1.0"
-```
-
-### 4) uv (fast installer/runner)
-
-```bash
-uv pip install -e .[dev]
-uv tool install .
-uvx lib_cli_exit_tools --help
-```
-
-### 5) From artifacts
-
-```bash
-python -m build
-pip install dist/lib_cli_exit_tools-*.whl
-pip install dist/lib_cli_exit_tools-*.tar.gz   # sdist
-```
-
-### 6) Poetry / PDM (project-managed envs)
-
-```bash
-# Poetry
-poetry add lib_cli_exit_tools     # as dependency
-poetry install                    # for local dev
-
-# PDM
-pdm add lib_cli_exit_tools
-pdm install
-```
-
-### 7) From Git via pip (CI-friendly)
-
-```bash
-pip install "git+https://github.com/bitranox/lib_cli_exit_tools@v1.1.0#egg=lib_cli_exit_tools"
-```
-
-### 8) Conda/mamba (optional)
-
-```bash
-mamba create -n cli-exit python=3.12 pip
-mamba activate cli-exit
-pip install .
-```
-
-### 9) System package managers (optional distribution)
-
-- Homebrew formula (macOS): `brew install lib_cli_exit_tools` (if published)
-- Nix: flake/package for reproducible installs
-- Deb/RPM via `fpm` for OS-native packages
-
+See [INSTALL.md](INSTALL.md) for editable installs, pipx/uv, package-manager builds, and troubleshooting tips.
 
 ## Usage
 
@@ -193,6 +111,89 @@ Field reference:
 - `broken_pipe_exit_code` (`int`, default `141`): overrides the exit status when a `BrokenPipeError` is raised (the default mirrors `128 + SIGPIPE`). Set this to `0` if you want truncation to be treated as success.
 
 Remember that `config` is module-level—if you call the library from multiple threads or embed it in another CLI, configure it once during bootstrap before handing control to user code.
+
+## Public API Reference
+
+The package re-exports the helpers below via `lib_cli_exit_tools.__all__`. Import them directly with `from lib_cli_exit_tools import …`.
+
+### `config`
+Mutable dataclass-like singleton holding process-wide settings. Configure it during CLI startup.
+
+- `traceback` (`bool`): `True` to surface full Python tracebacks; `False` keeps short, coloured summaries.
+- `exit_code_style` (`'errno' | 'sysexits'`): Selects POSIX/Windows errno-style exit codes or BSD `sysexits` semantics.
+- `broken_pipe_exit_code` (`int`): Overrides the exit status for `BrokenPipeError` (default `141`).
+- `traceback_force_color` (`bool`): Forces Rich-coloured tracebacks even when stderr is not a TTY.
+
+### `run_cli(cli, argv=None, *, prog_name=None, signal_specs=None, install_signals=True) -> int`
+Wrap a Click command or group so every invocation shares the same signal handling and exit-code policy. Returns the numeric exit code instead of exiting the process.
+
+Parameters:
+- `cli`: `click.BaseCommand` to execute.
+- `argv`: Optional iterable of CLI arguments (excluding program name).
+- `prog_name`: Override the program name shown in help/version output.
+- `signal_specs`: Iterable of `SignalSpec` objects to customise signal handling; defaults to `default_signal_specs()`.
+- `install_signals`: Set `False` when the host application already manages signal handlers.
+
+### `handle_cli_exception(exc, *, signal_specs=None, echo=None) -> int`
+Translate exceptions raised by Click commands into deterministic exit codes, honouring configured signal mappings and traceback policy.
+
+Parameters:
+- `exc`: Exception instance to classify.
+- `signal_specs`: Optional iterable of `SignalSpec` objects for custom signal handling.
+- `echo`: Callable matching `click.echo` signature, allowing custom stderr routing during tests or embedding.
+
+### `get_system_exit_code(exc) -> int`
+Compute a platform-aware exit status for arbitrary exceptions (errno mappings on POSIX/Windows or BSD `sysexits` when enabled).
+
+Parameters:
+- `exc`: Exception instance to classify.
+
+### `print_exception_message(trace_back=config.traceback, length_limit=500, stream=None) -> None`
+Emit the active exception using Rich formatting. Produces a coloured traceback when `trace_back` is `True`, otherwise prints a truncated summary in red. Respects `config.traceback_force_color`.
+
+Parameters:
+- `trace_back`: Toggle between full traceback rendering (`True`) and short summary (`False`).
+- `length_limit`: Maximum characters for summary output.
+- `stream`: Target text stream; defaults to `sys.stderr`.
+
+### `flush_streams() -> None`
+Best-effort flush of `sys.stdout` and `sys.stderr`, ensuring buffered output is written before exit.
+
+### `default_signal_specs() -> list[SignalSpec]`
+Return the default signal mapping for the current platform (always includes `SIGINT`, plus `SIGTERM`/`SIGBREAK` when available).
+
+### `install_signal_handlers(specs=None) -> Callable[[], None]`
+Register handlers that raise structured exceptions for the provided specs and return a restoration callback. Invoke the callback (typically in a `finally` block) to restore previous handlers.
+
+Parameters:
+- `specs`: Iterable of `SignalSpec` objects; defaults to `default_signal_specs()`.
+
+### `SignalSpec(signum: int, exception: type[BaseException], message: str, exit_code: int)`
+Lightweight dataclass describing how a signal maps to an exception, stderr message, and exit code.
+
+Fields:
+- `signum`: Numeric signal value passed to `signal.signal`.
+- `exception`: Exception type raised by the handler.
+- `message`: Human-readable text echoed when the signal fires.
+- `exit_code`: Exit status returned to the OS.
+
+### `CliSignalError` and subclasses
+Hierarchy of marker exceptions raised when signal handlers trigger. Use them to differentiate signal-driven exits from other failures.
+
+- `CliSignalError`: Base class.
+- `SigIntInterrupt`: Raised on `SIGINT` (Ctrl+C); maps to exit code `130`.
+- `SigTermInterrupt`: Raised on `SIGTERM`; maps to exit code `143`.
+- `SigBreakInterrupt`: Raised on Windows `SIGBREAK`; maps to exit code `149`.
+
+### `default_signal_specs`, `install_signal_handlers`, and `run_cli` contract summary
+When `run_cli` executes your Click command it will:
+1. Build a signal spec list (custom or default).
+2. Optionally install handlers that raise the exceptions above.
+3. Execute the command with `standalone_mode=False`.
+4. Funnel any exception through `handle_cli_exception`.
+5. Restore prior signal handlers and flush streams before returning.
+
+This behaviour keeps CLI wiring consistent across projects embedding `lib_cli_exit_tools`.
 
 ### Advanced CLI wiring
 
@@ -296,11 +297,11 @@ When installed, the generated console scripts (`lib_cli_exit_tools`, `cli-exit-t
 - Set `config.exit_code_style = "sysexits"` to map ValueError/TypeError → EX_USAGE(64),
   FileNotFoundError → EX_NOINPUT(66), PermissionError → EX_NOPERM(77), generic OSError → EX_IOERR(74).
 
-## Development
+## Additional Documentation
 
-See [DEVELOPMENT.md](DEVELOPMENT.md) for contributor workflows, make targets, packaging sync details, and CI/publishing guidance.
-
-
-## License
-
-MIT
+- [INSTALL](INSTALL.md)
+- [CHANGELOG](CHANGELOG.md)
+- [CONTRIBUTING](CONTRIBUTING.md)
+- [DEVELOPMENT](DEVELOPMENT.md)
+- [MODULE REFERENCE](docs/system-design/module_reference.md)
+- [LICENSE](LICENSE)
