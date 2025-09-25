@@ -15,6 +15,11 @@ k3cc316e7d0b09dd79e617cb3e91b14ee414b7e6695b108a326d9d3ccd08dd9"
 k3cc316e7d0b09dd79e617cb3e91b14ee414b7e6695b108a326d9d3ccd08dd9"
   end
 
+  resource "rich-click" do
+    url "https://files.pythonhosted.org/packages/29/c2/f08b5e7c1a33af8a115be640aa0796ba01c4732696da6d2254391376b314/rich_click-1.9.1.tar.gz"
+    sha256 "4f2620589d7287f86265432e6a909de4f281de909fe68d8c835fbba49265d268"
+  end
+
   def install
     virtualenv_install_with_resources
   end

@@ -30,7 +30,7 @@ from dataclasses import dataclass
 from types import FrameType
 from typing import Any, Callable, List, Literal, Optional, Protocol, Sequence, TextIO
 
-import click
+import rich_click as click
 
 __all__ = [
     "config",

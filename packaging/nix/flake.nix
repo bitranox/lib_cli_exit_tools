@@ -29,13 +29,13 @@
           ];
           doCheck = false;
         };
-        clickVendor = pypkgs.buildPythonPackage rec {
-          pname = "click";
-          version = "8.3.0";
+        richClickVendor = pypkgs.buildPythonPackage rec {
+          pname = "rich-click";
+          version = "1.9.1";
           format = "wheel";
           src = pkgs.fetchurl {
-            url = "https://files.pythonhosted.org/packages/db/d3/9dcc0f5797f070ec8edf30fbadfb200e71d9db6b84d211e3b2085a7589a0/click-8.3.0-py3-none-any.whl";
-            sha256 = "sha256-m58oUwLG4wZPQzDAXwW4GUWyo5VEJ5ND5ufF8nqbrdw=";
+            url = "https://files.pythonhosted.org/packages/a8/77/e9144dcf68a0b3f3f4386986f97255c3d9f7c659be58bb7a5fe8f26f3efa/rich_click-1.9.1-py3-none-any.whl";
+            sha256 = "sha256-6mEUqeCBt9aMwHsxUHA5j4BvAbsODEnaVvEp5nKHeBc=";
           };
           doCheck = false;
         };
@@ -48,7 +48,7 @@
           pyproject = true;
           src = ../..;
           nativeBuildInputs = [ hatchlingVendor ];
-          propagatedBuildInputs = [ clickVendor ];
+          propagatedBuildInputs = [ richClickVendor ];
 
           meta = with pkgs.lib; {
             description = "Rich-powered logging helpers for colorful terminal output";
@@ -63,7 +63,7 @@
           packages = [
             pkgs.python310
             hatchlingVendor
-            clickVendor
+            richClickVendor
             pypkgs.pytest
             pkgs.ruff
             pkgs.nodejs

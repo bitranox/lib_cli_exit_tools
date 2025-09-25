@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from typing import Optional, Sequence
 
-import click
+import rich_click as click
 
 from . import __init__conf__
 from . import lib_cli_exit_tools
