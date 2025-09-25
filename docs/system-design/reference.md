@@ -167,6 +167,13 @@ The package is the core runtime library for handling CLI exits within the broade
 **Output:** Dict passed to Click context settings.  
 **Location:** `lib_cli_exit_tools/cli.py`
 
+#### Function: _configure_rich_click_output
+**Purpose:** Neutralise rich-click styling when stdout is a pipe or uses non-UTF encodings so help text stays ASCII-safe on Windows CI.  
+**Input:** None; inspects the active stdout stream via `click.get_text_stream`.  
+**Output:** Adjusts rich-click globals (forced terminal flag, colour system, panel boxes) to avoid emitting characters that legacy encodings cannot represent.  
+**Location:** `lib_cli_exit_tools/cli.py`
+
+
 #### Function: cli
 **Purpose:** Root Click group that stores global options (currently `--traceback`) and updates library configuration.  
 **Input:** Click `Context`, boolean `traceback` option.  
