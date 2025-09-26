@@ -78,11 +78,25 @@ def test_handle_cli_exception_generic_delegates(monkeypatch: pytest.MonkeyPatch)
     assert calls == {"printed": True, "exc": err}
 
 
-def test_handle_cli_exception_respects_traceback(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Traceback mode re-raises instead of swallowing the exception."""
+def test_handle_cli_exception_prints_rich_traceback(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Traceback mode renders rich tracebacks and returns exit codes."""
+    calls: dict[str, object] = {}
+
+    def _fake_print(*_args, **kwargs) -> None:
+        calls["called"] = True
+        calls["trace_back"] = kwargs.get("trace_back")
+
+    def _fake_exit(exc: BaseException) -> int:
+        calls["exc"] = exc
+        return 17
+
+    monkeypatch.setattr("lib_cli_exit_tools.application.runner.print_exception_message", _fake_print)
+    monkeypatch.setattr("lib_cli_exit_tools.application.runner.get_system_exit_code", _fake_exit)
+
     config.traceback = True
-    with pytest.raises(RuntimeError):
-        handle_cli_exception(RuntimeError("boom"))
+    err = RuntimeError("boom")
+    assert handle_cli_exception(err) == 17
+    assert calls == {"called": True, "trace_back": True, "exc": err}
 
 
 def test_print_exception_message_outputs_summary() -> None:

@@ -240,8 +240,8 @@ def handle_cli_exception(
     Returns:
         Integer exit code suitable for :func:`sys.exit`.
     Side Effects:
-        May write to stderr, invoke :func:`print_exception_message`, or re-raise
-        the original exception when tracebacks are enabled.
+        May write to stderr, invoke :func:`print_exception_message`, and render
+        rich tracebacks when requested.
     """
 
     specs = list(default_signal_specs() if signal_specs is None else signal_specs)
@@ -265,7 +265,8 @@ def handle_cli_exception(
         return 1
 
     if config.traceback:
-        raise exc
+        print_exception_message(trace_back=True)
+        return get_system_exit_code(exc)
 
     print_exception_message()
     return get_system_exit_code(exc)
