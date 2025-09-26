@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.4.0] - 2025-09-26
+
+- Reafracture, TestSuite
+
 ## [1.3.1] - 2025-09-26
 
 - patch colored traceback
