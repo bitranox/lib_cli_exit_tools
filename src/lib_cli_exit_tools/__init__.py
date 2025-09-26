@@ -25,6 +25,7 @@ from .lib_cli_exit_tools import (
     handle_cli_exception,
     install_signal_handlers,
     print_exception_message,
+    i_should_fail,
     run_cli,
 )
 
@@ -42,5 +43,6 @@ __all__ = [
     "default_signal_specs",
     "install_signal_handlers",
     "handle_cli_exception",
+    "i_should_fail",
     "run_cli",
 ]

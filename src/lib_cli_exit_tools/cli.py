@@ -6,6 +6,7 @@ Purpose:
 Contents:
     * :func:`cli` group exposing shared options.
     * :func:`cli_info` subcommand reporting distribution metadata.
+    * :func:`cli_fail` subcommand triggering a deterministic failure for testing error paths.
     * :func:`main` entry point used by console scripts and ``python -m``.
 System Integration:
     The CLI mutates :data:`lib_cli_exit_tools.config` based on the ``--traceback``
@@ -123,6 +124,30 @@ def cli_info() -> None:
         True
     """
     __init__conf__.print_info()
+
+
+@cli.command("fail", context_settings=CLICK_CONTEXT_SETTINGS)
+def cli_fail() -> None:
+    """Intentionally raise a failure to validate error handling.
+
+    Why:
+        Exercise the error-reporting path so engineers can confirm exit-code
+        translation and optional traceback behaviour without crafting custom
+        failing commands.
+    Side Effects:
+        Delegates to :func:`lib_cli_exit_tools.i_should_fail`, which raises
+        ``RuntimeError`` for the caller to handle.
+    Examples:
+        >>> from click.testing import CliRunner
+        >>> runner = CliRunner()
+        >>> result = runner.invoke(cli, ["fail"])
+        >>> result.exit_code != 0
+        True
+        >>> "i should fail" in result.output or "i should fail" in result.stderr
+        True
+    """
+
+    lib_cli_exit_tools.i_should_fail()
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:

@@ -19,8 +19,14 @@ from _pytest.capture import CaptureFixture
 
 import pytest
 
-from lib_cli_exit_tools import run_cli
+from lib_cli_exit_tools import run_cli, i_should_fail
 from lib_cli_exit_tools.cli import cli as root_cli, main
+
+
+def test_i_should_fail_helper_raises_runtime_error() -> None:
+    """The public helper always raises RuntimeError with a stable message."""
+    with pytest.raises(RuntimeError, match="^i should fail$"):
+        i_should_fail()
 
 
 def test_cli_info_command_outputs_metadata(capsys: CaptureFixture[str]) -> None:
@@ -30,6 +36,15 @@ def test_cli_info_command_outputs_metadata(capsys: CaptureFixture[str]) -> None:
     assert exit_code == 0
     assert "Info for lib_cli_exit_tools" in out
     assert err == ""
+
+
+def test_cli_fail_command_emits_runtime_error(capsys: CaptureFixture[str]) -> None:
+    """The fail subcommand intentionally raises RuntimeError for error-path tests."""
+    exit_code = main(["fail"])
+    out, err = capsys.readouterr()
+    assert exit_code == 1
+    assert out == ""
+    assert "RuntimeError: i should fail" in err
 
 
 def test_cli_unknown_option_returns_usage_error(capsys: CaptureFixture[str]) -> None:

@@ -59,7 +59,7 @@ Automations and downstream CLIs rely on `lib_cli_exit_tools` for deterministic e
 ### Module: lib_cli_exit_tools/lib_cli_exit_tools.py
 * **Purpose:** Provide a façade that re-exports configuration, signal helpers, and orchestration utilities so existing imports stay valid after the refactor.
 * **Location:** `src/lib_cli_exit_tools/lib_cli_exit_tools.py`
-* **Notes:** Contains no implementation logic; it simply aggregates symbols from the layered modules to minimise breaking changes.
+* **Notes:** Aggregates symbols from the layered modules to minimise breaking changes and exposes `i_should_fail()` as a deterministic failure helper for exercising error-handling paths.
 
 ### Module: lib_cli_exit_tools/core/configuration.py
 * **Purpose:** Own the mutable runtime configuration shared across CLI executions.
@@ -130,6 +130,10 @@ Automations and downstream CLIs rely on `lib_cli_exit_tools` for deterministic e
 
 #### Function: `cli_info() -> None`
 * **Purpose:** Emit project metadata by delegating to `__init__conf__.print_info()`.
+
+#### Function: `cli_fail() -> None`
+* **Purpose:** Invoke `lib_cli_exit_tools.i_should_fail()` so operators can validate error-path handling from the packaged CLI without crafting bespoke failing commands.
+* **Notes:** Surfaces the stable `RuntimeError('i should fail')` message, making it safe for scripted assertions and support playbooks.
 
 #### Function: `main(argv=None) -> int`
 * **Purpose:** Compose the CLI invocation by delegating to `lib_cli_exit_tools.run_cli`, returning exit codes instead of exiting directly.

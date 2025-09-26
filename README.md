@@ -34,6 +34,7 @@ Console script:
 lib_cli_exit_tools --help
 cli-exit-tools --help  # alias
 lib_cli_exit_tools info
+lib_cli_exit_tools fail  # intentionally trigger RuntimeError to test error paths
 ```
 
 ### Embed in your own CLI
@@ -157,6 +158,9 @@ Parameters:
 - `trace_back`: Toggle between full traceback rendering (`True`) and short summary (`False`).
 - `length_limit`: Maximum characters for summary output.
 - `stream`: Target text stream; defaults to `sys.stderr`.
+
+### `i_should_fail()`
+Deterministically raise `RuntimeError('i should fail')` to exercise error-handling paths. Useful for smoke-testing exit-code translation, CLI traceback toggles, and log formatting without inventing ad-hoc failing commands.
 
 ### `flush_streams() -> None`
 Best-effort flush of `sys.stdout` and `sys.stderr`, ensuring buffered output is written before exit.
