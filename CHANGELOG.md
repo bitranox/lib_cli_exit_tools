@@ -51,6 +51,8 @@
 - Metadata lookup in `__init__conf__` resolved once and reused.
 - Coverage gate relaxed to 80% and removed `# pragma: no cover` comments.
 - Quickstart notebook defaults to install from GitHub; added cell IDs; last cell prints exit code example instead of exiting.
+- Repartitioned the exit tooling into `core`, `adapters`, and `application` packages with `lib_cli_exit_tools` now acting as a facade to preserve import paths.
+- `run_cli` accepts injectable `exception_handler` and `signal_installer` hooks; CLI rich-click configuration now runs during `main()` execution instead of at import time.
 
 ### Fixed
 - Pyright 3.10 compatibility in `__init__conf__` by typing to a minimal metadata protocol; resolved unknown `.get` errors.

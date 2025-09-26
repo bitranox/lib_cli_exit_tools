@@ -70,9 +70,6 @@ def _configure_rich_click_output() -> None:
         rich_config.STYLE_ERRORS_PANEL_BOX = None
 
 
-_configure_rich_click_output()
-
-
 @click.group(help=__init__conf__.title, context_settings=CLICK_CONTEXT_SETTINGS)
 @click.version_option(
     version=__init__conf__.version,
@@ -150,6 +147,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         >>> "Info for" in buffer.getvalue()
         True
     """
+    _configure_rich_click_output()
     return lib_cli_exit_tools.run_cli(
         cli,
         argv=list(argv) if argv is not None else None,

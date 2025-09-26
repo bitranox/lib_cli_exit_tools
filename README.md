@@ -124,7 +124,7 @@ Mutable dataclass-like singleton holding process-wide settings. Configure it dur
 - `broken_pipe_exit_code` (`int`): Overrides the exit status for `BrokenPipeError` (default `141`).
 - `traceback_force_color` (`bool`): Forces Rich-coloured tracebacks even when stderr is not a TTY.
 
-### `run_cli(cli, argv=None, *, prog_name=None, signal_specs=None, install_signals=True) -> int`
+### `run_cli(cli, argv=None, *, prog_name=None, signal_specs=None, install_signals=True, exception_handler=None, signal_installer=None) -> int`
 Wrap a Click command or group so every invocation shares the same signal handling and exit-code policy. Returns the numeric exit code instead of exiting the process.
 
 Parameters:
@@ -133,6 +133,8 @@ Parameters:
 - `prog_name`: Override the program name shown in help/version output.
 - `signal_specs`: Iterable of `SignalSpec` objects to customise signal handling; defaults to `default_signal_specs()`.
 - `install_signals`: Set `False` when the host application already manages signal handlers.
+- `exception_handler`: Optional callable receiving the raised exception and returning an exit code; defaults to ``handle_cli_exception``.
+- `signal_installer`: Optional callable mirroring ``install_signal_handlers`` for embedding scenarios.
 
 ### `handle_cli_exception(exc, *, signal_specs=None, echo=None) -> int`
 Translate exceptions raised by Click commands into deterministic exit codes, honouring configured signal mappings and traceback policy.
@@ -191,9 +193,9 @@ When `run_cli` executes your Click command it will:
 2. Optionally install handlers that raise the exceptions above.
 3. Execute the command with `standalone_mode=False`.
 4. Funnel any exception through `handle_cli_exception`.
-5. Restore prior signal handlers and flush streams before returning.
+5. Restore prior signal handlers and flush streams before returning (or rely on any injected replacements).
 
-This behaviour keeps CLI wiring consistent across projects embedding `lib_cli_exit_tools`.
+This behaviour keeps CLI wiring consistent across projects embedding `lib_cli_exit_tools` while still allowing custom hooks when needed.
 
 ### Advanced CLI wiring
 

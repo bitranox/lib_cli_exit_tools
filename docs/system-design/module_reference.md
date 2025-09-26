@@ -10,6 +10,10 @@ Complete
 **Related Files:**
 
 * `src/lib_cli_exit_tools/lib_cli_exit_tools.py`
+* `src/lib_cli_exit_tools/core/configuration.py`
+* `src/lib_cli_exit_tools/core/exit_codes.py`
+* `src/lib_cli_exit_tools/application/runner.py`
+* `src/lib_cli_exit_tools/adapters/signals.py`
 * `src/lib_cli_exit_tools/cli.py`
 * `src/lib_cli_exit_tools/__init__conf__.py`
 * `src/lib_cli_exit_tools/__init__.py`
@@ -42,8 +46,8 @@ Automations and downstream CLIs rely on `lib_cli_exit_tools` for deterministic e
 1. Console script (or `python -m lib_cli_exit_tools`) resolves to `lib_cli_exit_tools.cli.main`.  
 2. The Click group stores global flags and mutates `lib_cli_exit_tools.config`.  
 3. `run_cli` optionally installs signal handlers, executes the requested Click command, and funnels exceptions into `handle_cli_exception`.  
-4. `handle_cli_exception` maps signals and errors to exit codes using `default_signal_specs`, `_sysexits_mapping`, and `get_system_exit_code`.  
-5. `print_exception_message` and `_print_output` render diagnostics when tracebacks are suppressed.  
+4. `handle_cli_exception` maps signals and errors to exit codes using `default_signal_specs` and `get_system_exit_code`.  
+5. `print_exception_message` and `_print_output` (within `application.runner`) render diagnostics when tracebacks are suppressed.  
 6. Packaging metadata from `__init__conf__` feeds CLI help/version output so docs and runtime stay synchronized.
 
 **System Dependencies:** Standard library (`signal`, `subprocess`, `sys`, `importlib.metadata`) plus `click` and `rich-click` for CLI/TUI behavior.
@@ -53,80 +57,63 @@ Automations and downstream CLIs rely on `lib_cli_exit_tools` for deterministic e
 ## Core Components
 
 ### Module: lib_cli_exit_tools/lib_cli_exit_tools.py
-* **Purpose:** Centralize configuration, signal registration, and exception-to-exit-code translation so all CLIs share identical behavior.  
+* **Purpose:** Provide a façade that re-exports configuration, signal helpers, and orchestration utilities so existing imports stay valid after the refactor.
 * **Location:** `src/lib_cli_exit_tools/lib_cli_exit_tools.py`
+* **Notes:** Contains no implementation logic; it simply aggregates symbols from the layered modules to minimise breaking changes.
+
+### Module: lib_cli_exit_tools/core/configuration.py
+* **Purpose:** Own the mutable runtime configuration shared across CLI executions.
+* **Location:** `src/lib_cli_exit_tools/core/configuration.py`
 
 #### Dataclass: `_Config`
-* **Purpose:** Mutable singleton holding traceback, exit-code style, and broken-pipe overrides.  
-* **Fields:**
-  * `traceback` (bool) — emit full tracebacks when `True`.
-  * `exit_code_style` (`"errno" | "sysexits"`) — choose mapping strategy.
-  * `broken_pipe_exit_code` (int) — exit status for `BrokenPipeError`.  
-  * `traceback_force_color` (bool) — opt-in flag to force ANSI-coloured Rich tracebacks on non-TTY streams.  
-* **Notes:** Mutations apply process-wide; callers should restore defaults in tests.
+* **Role:** Captures traceback, exit-code style, broken-pipe handling, and Rich colouring toggles.
+* **Notes:** Mutations apply process-wide; tests must restore defaults to avoid leakage.
 
 #### Constant: `config`
-* **Purpose:** Shared `_Config` instance consulted by all helpers.  
-* **Interactions:** Mutated by CLI options and tests; read by `handle_cli_exception`, `get_system_exit_code`, and `print_exception_message`.
+* **Role:** Singleton instance consumed by adapters and orchestration code.
+* **Interactions:** Mutated by the CLI (`--traceback`) and inspected by error handlers and exit-code mappers.
 
-#### Exception Hierarchy: `CliSignalError`, `SigIntInterrupt`, `SigTermInterrupt`, `SigBreakInterrupt`
-* **Purpose:** Represent signal-triggered interruptions so exit handlers can differentiate them from generic errors.  
-* **Notes:** Raised by generated signal handlers; mapped to exit codes 130 (SIGINT), 143 (SIGTERM), 149 (SIGBREAK).
+### Module: lib_cli_exit_tools/core/exit_codes.py
+* **Purpose:** Convert exceptions into deterministic OS exit statuses.
+* **Location:** `src/lib_cli_exit_tools/core/exit_codes.py`
+
+#### Function: `get_system_exit_code(exc: BaseException) -> int`
+* **Role:** Mirrors platform-specific errno/winerror semantics or BSD sysexits based on `config.exit_code_style`.
+* **Notes:** Handles `CalledProcessError`, `SystemExit`, and `BrokenPipeError` explicitly before falling back to errno tables.
+
+### Module: lib_cli_exit_tools/adapters/signals.py
+* **Purpose:** Translate operating-system signals into structured exceptions and reversible handlers.
+* **Location:** `src/lib_cli_exit_tools/adapters/signals.py`
+
+#### Exceptions: `CliSignalError`, `SigIntInterrupt`, `SigTermInterrupt`, `SigBreakInterrupt`
+* **Role:** Represent distinct signal pathways so exit handling can map them to stable codes (130/143/149).
 
 #### Dataclass: `SignalSpec`
-* **Purpose:** Describe how to translate a signal into an exception, stderr message, and exit code.  
-* **Key Fields:** `signum`, `exception`, `message`, `exit_code`.  
-* **Usage:** Consumed by `install_signal_handlers`, `handle_cli_exception`.
+* **Role:** Describe signal metadata (signum, exception, message, exit code) used by installers and handlers.
+
+#### Function: `default_signal_specs(extra: Iterable[SignalSpec] | None = None) -> list[SignalSpec]`
+* **Role:** Provide platform-aware defaults (always SIGINT; conditional SIGTERM/SIGBREAK) with optional extension points.
+
+#### Function: `install_signal_handlers(specs: Sequence[SignalSpec] | None = None) -> Callable[[], None]`
+* **Role:** Register handlers that raise the specified exceptions and return a restoration callback for clean-up.
+
+### Module: lib_cli_exit_tools/application/runner.py
+* **Purpose:** Orchestrate Click command execution with shared signal wiring, exception translation, and Rich-based diagnostics.
+* **Location:** `src/lib_cli_exit_tools/application/runner.py`
 
 #### Protocol: `_Echo`
-* **Purpose:** Structural type for echo-like callables (defaulting to `click.echo`).  
-* **Usage:** Enables dependency injection/testing of output behavior.
+* **Role:** Structural type enabling dependency injection for stderr writers in tests.
 
-#### Function: `_default_echo(message: str, *, err: bool = True) -> None`
-* **Purpose:** Bridge to `click.echo` when no custom echo is provided.  
-* **Side Effects:** Writes text to stdout/stderr via Click.
-
-#### Function: `default_signal_specs() -> list[SignalSpec]`
-* **Purpose:** Produce platform-aware default signal specs.  
-* **Behavior:** Always includes SIGINT; adds SIGTERM/SIGBREAK when available.
-
-#### Function: `_make_raise_handler(exc_type) -> Callable`
-* **Purpose:** Wrap an exception type into a signal-compatible `(signum, frame)` handler that raises the type immediately.  
-* **Usage:** Internal helper for `install_signal_handlers`.
-
-#### Function: `install_signal_handlers(specs | None) -> Callable[[], None]`
-* **Purpose:** Register handlers for provided signal specs and return a restoration callback.  
-* **Considerations:** Handlers are process-wide; callers must invoke the returned function to restore prior state.
+#### Utilities: `flush_streams`, `_build_console`, `_print_output`, `print_exception_message`
+* **Role:** Manage stream flushing and Rich rendering when tracebacks are suppressed or forced.
 
 #### Function: `handle_cli_exception(exc, *, signal_specs=None, echo=None) -> int`
-* **Purpose:** Convert exceptions into deterministic exit codes, honoring configured signal mappings and traceback settings.  
-* **Behavior:** Detects signal exceptions, `BrokenPipeError`, `click.ClickException`, and `SystemExit`; otherwise defers to `print_exception_message` and `get_system_exit_code`.
+* **Role:** Map exceptions to exit codes, emit signal messages, honour `config.traceback`, and delegate to `get_system_exit_code` when needed.
+* **Notes:** Raises the original exception when traceback mode is enabled; otherwise trims output and prints captured subprocess streams.
 
-#### Function: `run_cli(cli, argv=None, *, prog_name=None, signal_specs=None, install_signals=True) -> int`
-* **Purpose:** Execute a Click command under shared signal/error handling, flushing streams before returning.  
-* **Behavior:** Optionally installs handlers, invokes `cli.main(...)`, funnels exceptions to `handle_cli_exception`, and restores handlers.
-
-#### Function: `get_system_exit_code(exc) -> int`
-* **Purpose:** Map exceptions to platform-appropriate exit codes using errno, Windows `winerror`, or sysexits semantics.  
-* **Behavior:** Supports subprocess return codes, `SystemExit`, `KeyboardInterrupt`, `BrokenPipeError`, and default fallbacks.
-
-#### Function: `_sysexits_mapping(exc) -> int`
-* **Purpose:** Provide BSD `sysexits` codes when `config.exit_code_style == "sysexits"`.
-
-#### Function: `_build_console(stream=None) -> rich.console.Console`
-* **Purpose:** Construct a Rich console aligned with current rich-click styling for consistent error/help rendering.  
-* **Usage:** Employed by `print_exception_message`.
-
-#### Function: `print_exception_message(trace_back=config.traceback, length_limit=500, stream=None) -> None`
-* **Purpose:** Emit the active exception message (and optional Rich traceback) with truncation safeguards.  
-* **Behavior:** Flushes streams, surfaces captured subprocess output, renders highlighted tracebacks when enabled.
-
-#### Function: `_print_output(exc_info, attr, stream=None) -> None`
-* **Purpose:** Print `stdout`/`stderr` captured on exceptions such as `subprocess.CalledProcessError`.
-
-#### Function: `flush_streams() -> None`
-* **Purpose:** Best-effort flush of `sys.stdout` / `sys.stderr` to avoid buffered output loss during termination.
-
+#### Function: `run_cli(cli, argv=None, *, prog_name=None, signal_specs=None, install_signals=True, exception_handler=None, signal_installer=None) -> int`
+* **Role:** Install signal handlers (unless disabled), execute the passed Click command, and funnel exceptions through an injectable handler before flushing streams.
+* **Notes:** New `exception_handler` and `signal_installer` hooks support advanced embedding and unit testing scenarios.
 ### Module: lib_cli_exit_tools/cli.py
 * **Purpose:** Provide the Click command group and subcommands that surface the exit tooling.  
 * **Location:** `src/lib_cli_exit_tools/cli.py`
@@ -186,6 +173,10 @@ Automations and downstream CLIs rely on `lib_cli_exit_tools` for deterministic e
 
 * `install_signal_handlers` returns a restoration callback; callers must execute it (preferably in `finally`) to restore original handlers.  
 * SIGTERM and SIGBREAK specs are conditionally added based on platform capabilities.
+
+**Extensibility:**
+
+* `run_cli` exposes `exception_handler` and `signal_installer` hooks so embedders and unit tests can replace the default wiring without patching globals.
 
 ---
 
