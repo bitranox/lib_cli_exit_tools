@@ -12,6 +12,7 @@ System Integration:
 
 from __future__ import annotations
 
+import signal
 import subprocess
 import sys
 
@@ -40,18 +41,6 @@ def test_system_exit_invalid_string_falls_back_to_one() -> None:
 
 
 @pytest.mark.skipif(sys.platform.startswith("win"), reason="POSIX-specific expectations")
-@pytest.mark.skipif(not sys.platform.startswith("win"), reason="Windows-specific behaviour")
-def test_default_signal_specs_windows_has_sigbreak() -> None:
-    """Ensure SIGBREAK is present on Windows runners."""
-    from lib_cli_exit_tools.adapters.signals import default_signal_specs, SigBreakInterrupt
-
-    specs = default_signal_specs()
-    assert any(spec.exception is SigBreakInterrupt for spec in specs), "SIGBREAK spec missing on Windows"
-    import signal as _signal
-
-    assert hasattr(_signal, "SIGBREAK")
-
-
 def test_posix_errno_mappings() -> None:
     """POSIX errno exceptions translate to their documented numeric codes."""
     assert get_system_exit_code(FileNotFoundError("missing")) == 2
@@ -66,6 +55,7 @@ def test_winerror_attribute_takes_priority(monkeypatch: pytest.MonkeyPatch) -> N
 
     err = CustomError("boom")
     setattr(err, "winerror", 42)  # type: ignore[attr-defined]
+    assert getattr(err, "winerror", None) == 42
     assert get_system_exit_code(err) == 42
 
 
@@ -157,4 +147,5 @@ def test_default_signal_specs_windows_has_sigbreak() -> None:
     specs = default_signal_specs()
     signums = {spec.signum for spec in specs}
     assert any(spec.exception is SigBreakInterrupt for spec in specs), "SIGBREAK spec missing on Windows"
+    assert hasattr(signal, "SIGBREAK")
     assert signal.SIGBREAK in signums
