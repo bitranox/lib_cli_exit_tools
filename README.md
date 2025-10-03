@@ -4,7 +4,7 @@
 [![CI](https://github.com/bitranox/lib_cli_exit_tools/actions/workflows/ci.yml/badge.svg)](https://github.com/bitranox/lib_cli_exit_tools/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/bitranox/lib_cli_exit_tools/actions/workflows/codeql.yml/badge.svg)](https://github.com/bitranox/lib_cli_exit_tools/actions/workflows/codeql.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Jupyter](https://img.shields.io/badge/Jupyter-Launch-orange?logo=jupyter)](https://mybinder.org/v2/gh/bitranox/lib_cli_exit_tools/HEAD?labpath=notebooks%2FQuickstart.ipynb)
+[![Open in Codespaces](https://img.shields.io/badge/Codespaces-Open-blue?logo=github&logoColor=white&style=flat-square)](https://codespaces.new/bitranox/lib_cli_exit_tools?quickstart=1)
 [![PyPI](https://img.shields.io/pypi/v/lib_cli_exit_tools.svg)](https://pypi.org/project/lib_cli_exit_tools/)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/lib_cli_exit_tools.svg)](https://pypi.org/project/lib_cli_exit_tools/)
 [![Code Style: Ruff](https://img.shields.io/badge/Code%20Style-Ruff-46A3FF?logo=ruff&labelColor=000)](https://docs.astral.sh/ruff/)
