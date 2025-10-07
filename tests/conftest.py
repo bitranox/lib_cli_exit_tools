@@ -4,7 +4,7 @@ Purpose:
     Provide automatic configuration resets so tests remain isolated without
     repeating setup/teardown logic in each module.
 Contents:
-    * `_reset_config` fixture restoring the global CLI configuration.
+    * ``reset_config`` fixture restoring the global CLI configuration.
 System Integration:
     Imported implicitly by every pytest module to enforce clean state across
     layered test suites.
@@ -12,25 +12,25 @@ System Integration:
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+
 import pytest
 
-from lib_cli_exit_tools.core.configuration import _Config, config
+from lib_cli_exit_tools.core.configuration import config
 
 
 @pytest.fixture(autouse=True)
-def _reset_config() -> None:
+def reset_config() -> Iterator[None]:
     """Restore global CLI configuration between tests."""
 
-    original = _Config(
-        traceback=config.traceback,
-        exit_code_style=config.exit_code_style,
-        broken_pipe_exit_code=config.broken_pipe_exit_code,
-        traceback_force_color=config.traceback_force_color,
-    )
+    traceback_value = config.traceback
+    exit_code_style_value = config.exit_code_style
+    broken_pipe_exit_code_value = config.broken_pipe_exit_code
+    traceback_force_color_value = config.traceback_force_color
     try:
         yield
     finally:
-        config.traceback = original.traceback
-        config.exit_code_style = original.exit_code_style
-        config.broken_pipe_exit_code = original.broken_pipe_exit_code
-        config.traceback_force_color = original.traceback_force_color
+        config.traceback = traceback_value
+        config.exit_code_style = exit_code_style_value
+        config.broken_pipe_exit_code = broken_pipe_exit_code_value
+        config.traceback_force_color = traceback_force_color_value

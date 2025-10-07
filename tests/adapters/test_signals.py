@@ -16,13 +16,20 @@ import signal
 
 import pytest
 
-from lib_cli_exit_tools.adapters.signals import (
-    CliSignalError,
-    SigIntInterrupt,
-    SignalSpec,
-    _make_raise_handler,
-    default_signal_specs,
-    install_signal_handlers,
+from typing import Callable, cast
+
+import lib_cli_exit_tools.adapters.signals as signals_module
+
+SignalSpec = signals_module.SignalSpec
+SigIntInterrupt = signals_module.SigIntInterrupt
+default_signal_specs = signals_module.default_signal_specs
+install_signal_handlers = signals_module.install_signal_handlers
+
+_Handler = Callable[[int, object | None], None]
+_MakeRaiseHandler = Callable[[type[BaseException]], _Handler]
+_make_raise_handler = cast(
+    _MakeRaiseHandler,
+    getattr(signals_module, "_make_raise_handler"),
 )
 
 

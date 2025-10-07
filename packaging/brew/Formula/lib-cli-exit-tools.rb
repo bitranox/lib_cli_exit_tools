@@ -7,7 +7,7 @@ class LibCliExitTools < Formula
 k3cc316e7d0b09dd79e617cb3e91b14ee414b7e6695b108a326d9d3ccd08dd9"
   license "MIT"
 
-  depends_on "python@3.10"
+  depends_on "python@3.13"
 
   # Vendor Python deps (fill versions/sha256 for an actual formula)
   resource "click" do
@@ -16,7 +16,7 @@ k3cc316e7d0b09dd79e617cb3e91b14ee414b7e6695b108a326d9d3ccd08dd9"
   end
 
   resource "rich-click" do
-    url "https://files.pythonhosted.org/packages/29/c2/f08b5e7c1a33af8a115be640aa0796ba01c4732696da6d2254391376b314/rich_click-1.9.1.tar.gz"
+    url "https://files.pythonhosted.org/packages/0c/4d/e8fcbd785a93dc5d7aef38f8aa4ade1e31b0c820eb2e8ff267056eda70b1/rich_click-1.9.2.tar.gz"
 ab87be0f5a4c171b43778922b5ed1f99611a0db5a4bf4d0f36770c18ef848d4"
   end
 

@@ -2,6 +2,10 @@
 
 ## On session start
 
+whenever You wait for user input or finished, execute "paplay /usr/share/sounds/codex/ready.wav"
+whenever You have a question, execute "paplay /usr/share/sounds/codex/ready.wav"
+whenever You have an error, execute "paplay /usr/share/sounds/codex/error.wav"
+
 Review the system prompt files in `/media/srv-main/softdev/*/projects/softwarestack/systemprompts` and keep their guidance in working memory:
 
 - core_programming_solid.md
@@ -15,6 +19,7 @@ Review the system prompt files in `/media/srv-main/softdev/*/projects/softwarest
 - self_documenting_template.md
 - python_jupyter_notebooks.md
 - python_testing.md
+
 
 always apply those Rules :
 
@@ -47,7 +52,7 @@ when writing or refracturing Python scripts, apply those Rules :
 
 - Single source of truth for the package version is `pyproject.toml` (`[project].version`).
 - Runtime code reads metadata via `importlib.metadata`; do not duplicate the version in code files.
-- On a version bump, update only `pyproject.toml` and the `CHANGELOG.md` entry; do not edit `src/lib_cli_exit_tools/__init__conf__.py` for versioning.
+- On a version bump, update only `pyproject.toml` and the `CHANGELOG.md` entry; runtime code should continue to read the version via `importlib.metadata` (no separate `__init__conf__` file).
 - Tag releases `vX.Y.Z` and push tags; CI will build artifacts and publish when configured.
 
 ### Common Make Targets (Alphabetical)
@@ -73,6 +78,7 @@ when writing or refracturing Python scripts, apply those Rules :
 
 
 ## Coding Style & Naming Conventions
+  - apply python_clean_code.md
 
 ## Commit & Pull Request Guidelines
 
@@ -88,23 +94,20 @@ when writing or refracturing Python scripts, apply those Rules :
 ## Translations (App UI Strings)
 
 ## Changes in WEB Documentation
-
 - when asked to update documentation - only do that in the english docs under /website/docs because other languages will be translated automatically,
   unless stated otherwise by the user. In doubt - ask the user
 
 ## Changes in APP Strings
-
 - when i18 strings are changed, only to that in sources/\_locales/en because other languages will be translated automatically,
   unless stated otherwise by the user. In doubt - ask the user
 
 ## commit/push/GitHub policy
-
 - run "make test" before any push to avoid lint/test breakage.
 - after push, monitor errors in the github actions and try to correct the errors
 
----
+--- 
 
-# ONLY ON USER REQEST !!!! :
+# ONLY ON USER REQEST !!!! : 
 
 # 📘 Documentation Review & Enhancement Prompt
 

@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import os
 import subprocess
-from typing import Any
 
 from .configuration import config
 
@@ -104,7 +103,10 @@ def get_system_exit_code(exc: BaseException) -> int:
     if config.exit_code_style == "sysexits":
         return _sysexits_mapping(exc)
 
-    exceptions = posix_exceptions if os.name == "posix" else windows_exceptions
+    if os.name == "posix":
+        exceptions = posix_exceptions
+    else:
+        exceptions = windows_exceptions
     for exception, code in exceptions.items():
         if isinstance(exc, exception):
             return code

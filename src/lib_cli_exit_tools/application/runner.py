@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import contextlib
 import sys
-from typing import Callable, Optional, Protocol, Sequence, TextIO
+from typing import Callable, Literal, Optional, Protocol, Sequence, TextIO, cast
 
 import rich_click as click
 from rich_click import rich_click as rich_config
@@ -28,17 +28,25 @@ from rich.console import Console
 from rich.text import Text
 from rich.traceback import Traceback
 
-from ..adapters.signals import (
-    CliSignalError,
-    SigBreakInterrupt,
-    SigIntInterrupt,
-    SigTermInterrupt,
-    SignalSpec,
-    default_signal_specs,
-    install_signal_handlers,
-)
+from ..adapters.signals import SignalSpec, default_signal_specs, install_signal_handlers
 from ..core.configuration import config
 from ..core.exit_codes import get_system_exit_code
+
+RichColorSystem = Literal["auto", "standard", "256", "truecolor", "windows"]
+
+
+class ClickCommand(Protocol):
+    """Protocol capturing the subset of Click commands used by the runner."""
+
+    def main(
+        self,
+        args: Sequence[str] | None = ...,
+        prog_name: str | None = ...,
+        complete_var: str | None = ...,
+        standalone_mode: bool = ...,
+        **_: object,
+    ) -> None: ...
+
 
 __all__ = [
     "handle_cli_exception",
@@ -96,7 +104,7 @@ def _build_console(
     stream: Optional[TextIO] = None,
     *,
     force_terminal: bool | None = None,
-    color_system: str | None = None,
+    color_system: RichColorSystem | None = None,
 ) -> Console:
     """Construct a Rich console aligned with the active rich-click settings.
 
@@ -114,7 +122,8 @@ def _build_console(
 
     target_stream = stream or sys.stderr
     force_flag = rich_config.FORCE_TERMINAL if force_terminal is None else force_terminal
-    color_flag = rich_config.COLOR_SYSTEM if color_system is None else color_system
+    default_color = cast(RichColorSystem | None, getattr(rich_config, "COLOR_SYSTEM", None))
+    color_flag = default_color if color_system is None else color_system
     return Console(
         file=target_stream,
         force_terminal=force_flag,
@@ -193,7 +202,7 @@ def print_exception_message(
     _print_output(exc_info, "stderr", target_stream)
 
     force_terminal = True if config.traceback_force_color else None
-    color_system = "auto" if config.traceback_force_color else None
+    color_system: RichColorSystem | None = "auto" if config.traceback_force_color else None
     console = _build_console(
         target_stream,
         force_terminal=force_terminal,
@@ -273,7 +282,7 @@ def handle_cli_exception(
 
 
 def run_cli(
-    cli: "click.BaseCommand",
+    cli: ClickCommand,
     argv: Sequence[str] | None = None,
     *,
     prog_name: str | None = None,
@@ -308,13 +317,17 @@ def run_cli(
 
     specs = list(default_signal_specs() if signal_specs is None else signal_specs)
 
-    installer = signal_installer or install_signal_handlers
-    restore = installer(specs) if install_signals else None
+    installer_fn = signal_installer or install_signal_handlers
+    restore = installer_fn(specs) if install_signals else None
 
-    handler = exception_handler or (lambda exc: handle_cli_exception(exc, signal_specs=specs))
+    def _default_handler(exc: BaseException) -> int:
+        return handle_cli_exception(exc, signal_specs=specs)
+
+    handler = exception_handler or _default_handler
 
     try:
-        cli.main(args=list(argv) if argv is not None else None, standalone_mode=False, prog_name=prog_name)
+        args_list = list(argv) if argv is not None else None
+        cli.main(args=args_list, standalone_mode=False, prog_name=prog_name)
         return 0
     except BaseException as exc:  # noqa: BLE001 - single funnel for exit codes
         return handler(exc)

@@ -9,7 +9,7 @@
       let
         pkgs = import nixpkgs { inherit system; };
         lib = pkgs.lib;
-        pypkgs = pkgs.python310Packages;
+        pypkgs = pkgs.python313Packages;
 
         hatchlingVendor = pypkgs.buildPythonPackage rec {
           pname = "hatchling";
@@ -51,7 +51,7 @@
           propagatedBuildInputs = [ richClickVendor ];
 
           meta = with pkgs.lib; {
-            description = "Rich-powered logging helpers for colorful terminal output";
+            description = "Rich-powered logging runtime with contextual metadata and multi-sink fan-out";
             homepage = "https://github.com/bitranox/bitranox_template_py_cli";
             license = licenses.mit;
             maintainers = [];
@@ -61,7 +61,7 @@
 
         devShells.default = pkgs.mkShell {
           packages = [
-            pkgs.python310
+            pkgs.python313
             hatchlingVendor
             richClickVendor
             pypkgs.pytest

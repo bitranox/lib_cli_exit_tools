@@ -15,7 +15,8 @@ System Integration:
 from __future__ import annotations
 
 import io
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
+from typing import TextIO
 
 import click
 import pytest
@@ -32,13 +33,16 @@ from lib_cli_exit_tools.adapters.signals import SignalSpec, SigIntInterrupt
 
 
 @pytest.fixture(autouse=True)
-def _stub_signal_install(monkeypatch: pytest.MonkeyPatch) -> None:
+def _stub_signal_install(monkeypatch: pytest.MonkeyPatch) -> None:  # pyright: ignore[reportUnusedFunction]
     """Prevent tests from mutating global signal handlers by default."""
 
-    monkeypatch.setattr(
-        "lib_cli_exit_tools.application.runner.install_signal_handlers",
-        lambda specs=None: lambda: None,
-    )
+    def _install(specs: Sequence[SignalSpec] | None = None) -> Callable[[], None]:
+        def _restore() -> None:
+            return None
+
+        return _restore
+
+    monkeypatch.setattr(runner_module, "install_signal_handlers", _install)
 
 
 def test_handle_cli_exception_emits_signal_message(capsys: pytest.CaptureFixture[str]) -> None:
@@ -69,8 +73,8 @@ def test_handle_cli_exception_generic_delegates(monkeypatch: pytest.MonkeyPatch)
         calls["exc"] = exc
         return 55
 
-    monkeypatch.setattr("lib_cli_exit_tools.application.runner.print_exception_message", fake_print)
-    monkeypatch.setattr("lib_cli_exit_tools.application.runner.get_system_exit_code", fake_exit)
+    monkeypatch.setattr(runner_module, "print_exception_message", fake_print)
+    monkeypatch.setattr(runner_module, "get_system_exit_code", fake_exit)
     config.traceback = False
 
     err = RuntimeError("boom")
@@ -82,16 +86,16 @@ def test_handle_cli_exception_prints_rich_traceback(monkeypatch: pytest.MonkeyPa
     """Traceback mode renders rich tracebacks and returns exit codes."""
     calls: dict[str, object] = {}
 
-    def _fake_print(*_args, **kwargs) -> None:
+    def _fake_print(*_args: object, **kwargs: object) -> None:
         calls["called"] = True
-        calls["trace_back"] = kwargs.get("trace_back")
+        calls["trace_back"] = bool(kwargs.get("trace_back"))
 
     def _fake_exit(exc: BaseException) -> int:
         calls["exc"] = exc
         return 17
 
-    monkeypatch.setattr("lib_cli_exit_tools.application.runner.print_exception_message", _fake_print)
-    monkeypatch.setattr("lib_cli_exit_tools.application.runner.get_system_exit_code", _fake_exit)
+    monkeypatch.setattr(runner_module, "print_exception_message", _fake_print)
+    monkeypatch.setattr(runner_module, "get_system_exit_code", _fake_exit)
 
     config.traceback = True
     err = RuntimeError("boom")
@@ -126,16 +130,23 @@ def test_print_exception_message_force_color(monkeypatch: pytest.MonkeyPatch) ->
     calls: dict[str, object] = {}
 
     class _DummyConsole:
-        def __init__(self, *, file, force_terminal, color_system, soft_wrap):
+        def __init__(
+            self,
+            *,
+            file: TextIO,
+            force_terminal: bool | None,
+            color_system: str | None,
+            soft_wrap: bool,
+        ) -> None:
             calls["force_terminal"] = force_terminal
             calls["color_system"] = color_system
             calls["soft_wrap"] = soft_wrap
             self.file = file
 
-        def print(self, renderable) -> None:  # pragma: no cover - behaviour mocked
+        def print(self, renderable: object) -> None:  # pragma: no cover - behaviour mocked
             calls["renderable"] = renderable
 
-    def _fake_traceback(*_args, **_kwargs):
+    def _fake_traceback(*_args: object, **_kwargs: object) -> str:
         calls["traceback_called"] = True
         return "traceback"
 
@@ -223,9 +234,13 @@ def test_run_cli_uses_custom_signal_installer() -> None:
     installs: list[list[SignalSpec]] = []
     restored: list[bool] = []
 
-    def fake_installer(specs: list[SignalSpec] | None) -> Callable[[], None]:
+    def fake_installer(specs: Sequence[SignalSpec] | None) -> Callable[[], None]:
         installs.append(list(specs or []))
-        return lambda: restored.append(True)
+
+        def _restore() -> None:
+            restored.append(True)
+
+        return _restore
 
     exit_code = run_cli(cli_cmd, argv=[], signal_installer=fake_installer, install_signals=True)
     assert exit_code == 0
@@ -240,7 +255,7 @@ def test_custom_signal_installer_can_raise(monkeypatch: pytest.MonkeyPatch) -> N
     def cli_cmd() -> None:
         pass
 
-    def boom(_specs):
+    def boom(_specs: Sequence[SignalSpec] | None) -> Callable[[], None]:
         raise RuntimeError("installer failed")
 
     with pytest.raises(RuntimeError, match="installer failed"):

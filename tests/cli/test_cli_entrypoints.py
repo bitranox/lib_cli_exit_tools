@@ -95,7 +95,10 @@ def test_main_invokes_rich_click_configuration(monkeypatch: pytest.MonkeyPatch) 
     original_force = cli_mod.rich_config.FORCE_TERMINAL
     original_color = cli_mod.rich_config.COLOR_SYSTEM
 
-    monkeypatch.setattr(cli_mod.click, "get_text_stream", lambda _: _FakeStream())
+    def _get_text_stream(_name: str) -> _FakeStream:
+        return _FakeStream()
+
+    monkeypatch.setattr(cli_mod.click, "get_text_stream", _get_text_stream)
     try:
         cli_mod.rich_config.FORCE_TERMINAL = True
         cli_mod.rich_config.COLOR_SYSTEM = "standard"
@@ -111,8 +114,6 @@ def test_main_invokes_rich_click_configuration(monkeypatch: pytest.MonkeyPatch) 
 
 def test_python_m_invocation_smoke() -> None:
     """`python -m lib_cli_exit_tools info` completes successfully."""
-    import subprocess, sys
-
     proc = subprocess.run([sys.executable, "-m", "lib_cli_exit_tools", "info"], capture_output=True, text=True, check=False)
     assert proc.returncode == 0
     assert "Info for lib_cli_exit_tools" in proc.stdout

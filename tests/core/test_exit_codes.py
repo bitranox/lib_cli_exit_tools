@@ -147,5 +147,5 @@ def test_default_signal_specs_windows_has_sigbreak() -> None:
     specs = default_signal_specs()
     signums = {spec.signum for spec in specs}
     assert any(spec.exception is SigBreakInterrupt for spec in specs), "SIGBREAK spec missing on Windows"
-    assert hasattr(signal, "SIGBREAK")
-    assert signal.SIGBREAK in signums
+    sigbreak = getattr(signal, "SIGBREAK")
+    assert sigbreak in signums

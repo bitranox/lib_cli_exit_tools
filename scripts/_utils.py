@@ -107,7 +107,14 @@ def run(
 
 
 def cmd_exists(name: str) -> bool:
-    return subprocess.call(["bash", "-lc", f"command -v {shlex.quote(name)} >/dev/null 2>&1"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) == 0
+    return (
+        subprocess.call(
+            ["bash", "-lc", f"command -v {shlex.quote(name)} >/dev/null 2>&1"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        == 0
+    )
 
 
 def _normalize_slug(value: str) -> str:
@@ -363,7 +370,13 @@ def git_delete_tag(name: str, *, remote: str | None = None) -> None:
 
 
 def git_tag_exists(name: str) -> bool:
-    return subprocess.call(["bash", "-lc", f"git rev-parse -q --verify {shlex.quote('refs/tags/' + name)} >/dev/null"], stdout=subprocess.DEVNULL) == 0
+    return (
+        subprocess.call(
+            ["bash", "-lc", f"git rev-parse -q --verify {shlex.quote('refs/tags/' + name)} >/dev/null"],
+            stdout=subprocess.DEVNULL,
+        )
+        == 0
+    )
 
 
 def git_create_annotated_tag(name: str, message: str) -> None:
