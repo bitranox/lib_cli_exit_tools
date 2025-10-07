@@ -21,24 +21,28 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
-      - name: Extract project metadata
-        shell: python
+      - name: Resolve project metadata
+        id: project_meta
+        shell: bash
         run: |
+          python - <<'PY'
           import os
           import tomllib
           from pathlib import Path
 
-          data = tomllib.loads(Path('pyproject.toml').read_text('utf-8'))
-          project = data['project']['name']
-          module = project.replace('-', '_')
-          dash = project.replace('_', '-')
-          scripts = list(data['project'].get('scripts', {}).keys())
-          cli_bin = scripts[0] if scripts else dash
+          data = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+          project_name = data["project"]["name"]
+          scripts = data["project"].get("scripts", {})
+          cli = next(iter(scripts)) if scripts else project_name.replace("_", "-")
+          module = project_name.replace("-", "_")
+          slug = project_name.replace("_", "-")
 
-          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as env:
-              env.write(f"PROJECT_NAME={project}\n")
-              env.write(f"PACKAGE_MODULE={module}\n")
-              env.write(f"CLI_BIN={cli_bin}\n")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+              fh.write(f"name={project_name}\n")
+              fh.write(f"slug={slug}\n")
+              fh.write(f"module={module}\n")
+              fh.write(f"cli={cli}\n")
+          PY
       - name: Install make on Windows
         if: runner.os == 'Windows'
         shell: pwsh
@@ -71,11 +75,14 @@ jobs:
         run: python -m build
       - name: Verify wheel install in clean env
         shell: bash
+        env:
+          CLI_BIN: ${{ steps.project_meta.outputs.cli }}
+          MODULE_NAME: ${{ steps.project_meta.outputs.module }}
         run: |
           python -m venv .venv_wheel
           . .venv_wheel/bin/activate 2>/dev/null || . .venv_wheel/Scripts/activate 2>/dev/null
           pip install dist/*.whl
-          "$CLI_BIN" --version 2>/dev/null || python -m "$PACKAGE_MODULE" --version
+          "${CLI_BIN}" --version || python -m "${MODULE_NAME}" --version
 
   pipx-uv:
     name: pipx/uv verification (ubuntu)
@@ -85,41 +92,48 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-      - name: Extract project metadata
-        shell: python
+      - name: Resolve project metadata
+        id: project_meta
         run: |
+          python - <<'PY'
           import os
           import tomllib
           from pathlib import Path
 
-          data = tomllib.loads(Path('pyproject.toml').read_text('utf-8'))
-          project = data['project']['name']
-          module = project.replace('-', '_')
-          dash = project.replace('_', '-')
-          scripts = list(data['project'].get('scripts', {}).keys())
-          cli_bin = scripts[0] if scripts else dash
+          data = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+          project_name = data["project"]["name"]
+          scripts = data["project"].get("scripts", {})
+          cli = next(iter(scripts)) if scripts else project_name.replace("_", "-")
+          module = project_name.replace("-", "_")
+          slug = project_name.replace("_", "-")
 
-          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as env:
-              env.write(f"PROJECT_NAME={project}\n")
-              env.write(f"PACKAGE_MODULE={module}\n")
-              env.write(f"CLI_BIN={cli_bin}\n")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+              fh.write(f"name={project_name}\n")
+              fh.write(f"slug={slug}\n")
+              fh.write(f"module={module}\n")
+              fh.write(f"cli={cli}\n")
+          PY
       - name: Build wheel
         run: |
           python -m pip install --upgrade pip build
           python -m build
       - name: pipx install from wheel
+        env:
+          CLI_BIN: ${{ steps.project_meta.outputs.cli }}
         run: |
           python -m pip install pipx
           pipx install dist/*.whl
-          "$CLI_BIN" --version 2>/dev/null || python -m "$PACKAGE_MODULE" --version
+          "${CLI_BIN}" --version
       - name: Install uv
         uses: astral-sh/setup-uv@v2
         with:
           enable-cache: true
       - name: uv tool install
+        env:
+          CLI_BIN: ${{ steps.project_meta.outputs.cli }}
         run: |
           uv tool install .
-          "$CLI_BIN" --version 2>/dev/null || python -m "$PACKAGE_MODULE" --version
+          "${CLI_BIN}" --version
 
   # nix and conda packaging builds are disabled for now to keep CI green.
   nix:
@@ -192,25 +206,21 @@ jobs:
 
           with nb_path.open('r', encoding='utf-8') as f:
               nb = nbformat.read(f, as_version=4)
-          # Normalize to ensure required fields like cell ids are present (supports older nbformat return types)
           if normalize is not None:
-              nb_norm = normalize(nb)  # may return notebook or a tuple
-              # pick the first element that looks like a notebook
-              cand = nb_norm
+              nb_norm = normalize(nb)
+              candidate = nb_norm
               if isinstance(nb_norm, tuple):
                   for item in nb_norm:
                       if hasattr(item, 'cells') and hasattr(item, 'metadata'):
-                          cand = item
+                          candidate = item
                           break
-              nb = cand
-          # Final guard for robustness
+              nb = candidate
           if isinstance(nb, tuple) or not (hasattr(nb, 'cells') and hasattr(nb, 'metadata')):
               raise SystemExit(f"Unexpected notebook object type after normalize: {type(nb)}")
 
           client = NotebookClient(nb, timeout=900, kernel_name='python3', allow_errors=False)
           client.execute()
 
-          # Optionally write executed notebook artifact (not committed)
           out_path = Path('notebooks/Quickstart-executed.ipynb')
           with out_path.open('w', encoding='utf-8') as f:
               nbformat.write(nb, f)
@@ -228,21 +238,25 @@ jobs:
       - name: Verify packaging matches pyproject
         run: |
           python - << 'PY'
-          import re, sys, tomllib
+          import re, sys
           from pathlib import Path
 
-          data = tomllib.loads(Path('pyproject.toml').read_text(encoding='utf-8'))
-          project = data['project']['name']
-          version = data['project']['version']
-          requires = data['project']['requires-python']
-
-          min_match = re.search(r'([0-9]+\.[0-9]+)', requires)
-          if not min_match:
-            print('requires-python must declare a minimum like ">=3.X"'); sys.exit(1)
-          min_py = min_match.group(1)
+          py = Path('pyproject.toml').read_text(encoding='utf-8')
+          m_name = re.search(r'^name\s*=\s*"([^"]+)"', py, re.M)
+          m_ver = re.search(r'^version\s*=\s*"([^"]+)"', py, re.M)
+          m_req = re.search(r'^requires-python\s*=\s*"([^"]+)"', py, re.M)
+          if not (m_name and m_ver and m_req):
+            print('pyproject missing name, version, or requires-python'); sys.exit(1)
+          project_name = m_name.group(1)
+          slug = project_name.replace('_', '-')
+          module = project_name.replace('-', '_')
+          version = m_ver.group(1)
+          requires = m_req.group(1)
+          m_min = re.search(r'>=\s*(3\.[0-9]+)', requires)
+          if not m_min:
+            print('requires-python must be like ">=3.X"'); sys.exit(1)
+          min_py = m_min.group(1)
           min_digits = min_py.replace('.', '')
-          project_dash = project.replace('_', '-')
-          project_module = project.replace('-', '_')
 
           # Conda
           conda = Path('packaging/conda/recipe/meta.yaml').read_text(encoding='utf-8')
@@ -252,9 +266,7 @@ jobs:
             print('conda/meta.yaml: python constraint not aligned (host/run)'); sys.exit(1)
 
           # Brew
-          brew_path = Path(f'packaging/brew/Formula/{project_dash}.rb')
-          if not brew_path.exists():
-            print(f'brew formula missing: {brew_path}'); sys.exit(1)
+          brew_path = Path(f'packaging/brew/Formula/{slug}.rb')
           brew = brew_path.read_text(encoding='utf-8')
           if f"refs/tags/v{version}.tar.gz" not in brew:
             print('brew formula: url tag mismatch'); sys.exit(1)
@@ -263,11 +275,11 @@ jobs:
 
           # Nix
           nix = Path('packaging/nix/flake.nix').read_text(encoding='utf-8')
-          if not re.search(r'pname\s*=\s*"' + re.escape(project_module) + r'";\s*[^}]*?version\s*=\s*"' + re.escape(version) + r'";', nix, re.S):
+          if not re.search(r'pname\s*=\s*"' + re.escape(project_name) + r'";\s*[^}]*?version\s*=\s*"' + re.escape(version) + r'";', nix, re.S):
             print('nix flake: version mismatch'); sys.exit(1)
           if not re.search(r'pypkgs\s*=\s*pkgs\.python' + re.escape(min_digits) + r'Packages', nix):
             print('nix flake: python package set not aligned'); sys.exit(1)
-          if not re.search(r'pkgs\.python' + re.escape(min_digits) + r'\\b', nix):
+          if not re.search(r'pkgs\.python' + re.escape(min_digits) + r'\b', nix):
             print('nix flake: devShell python not aligned'); sys.exit(1)
           print('Packaging files are consistent with pyproject.')
           PY

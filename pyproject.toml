@@ -50,8 +50,6 @@ lib-cli-exit-tools = "lib_cli_exit_tools.cli:main"
 requires = ["hatchling>=1.25"]
 build-backend = "hatchling.build"
 
-
-
 [tool.hatch.build.targets.wheel]
 packages = ["src/lib_cli_exit_tools"]
 include = ["src/lib_cli_exit_tools/py.typed"]
