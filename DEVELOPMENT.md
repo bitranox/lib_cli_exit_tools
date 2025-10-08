@@ -64,7 +64,7 @@ This guide aggregates everything maintainers need for building, testing, and rel
 Install dev extras if you haven’t (first mirror the CI guard against pip 25.2):
 
 ```bash
-python -m pip install --upgrade "pip!=25.2"
+python -m pip install --upgrade "pip>=25.3.dev0"
 pip install -e .[dev]
 ```
 
