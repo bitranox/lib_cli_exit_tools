@@ -1,93 +1,97 @@
 # Changelog
 
-## [1.5.0] - 2025-09-26
-
-- Refracture
-
-## [1.4.0] - 2025-09-26
-
-- Reafracture, TestSuite
-
-## [1.3.1] - 2025-09-26
-
-- patch colored traceback
-
-## [1.3.0] - 2025-09-25
-
-- colored traceback
-
-## [1.2.0] - 2025-09-25
-
-- use rich-click instead of click, minor fixes
-
-## [1.1.1] - 2025-09-18
-
-- Documentation and doctest updates
-
-## [1.1.0] - 2025-09-16
-
-- introduced lib_cli_exit_tools.run_cli helper to reduce boilerplate code. see cli.py as example
-
-## [1.0.3] - 2025-09-16
-
-- added make menu
-
-## [1.0.2] - 2025-09-15
-
-- minor internals
-
-## [1.0.1] - 2025-09-15
-
-- minor internals 
-
-## [1.0.0] - 2025-09-15
-
-- public release
+All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
 ### Added
-- CI job to execute Jupyter notebook on Python 3.10 (installs ipykernel, normalizes notebook IDs) and a tag‑time packaging‑consistency check.
-- Packaging auto‑sync: `make test`, `make push`, and the bump script now align Conda/Brew/Nix files to `pyproject.toml` version, `requires-python`, and runtime deps. Homebrew resources are updated (URL + sha256) using PyPI metadata. A sync‑only mode is available via `python scripts/bump_version.py --sync-packaging`.
-- Tests covering SystemExit variants, tolerant output printing, English CLI messages, and Windows mapping via monkeypatched `os.name`.
+- Configuration helpers `config_overrides` and `reset_config` so embedders can
+  safely tweak and restore global CLI settings without bespoke fixtures.
+
+## [1.5.0] - 2025-09-26
+
+### Added
+- CI job that executes the Quickstart notebook on Python 3.13 and validations that ensure packaging metadata stays in sync at tag time.
+- Automation that keeps Conda, Homebrew, and Nix specs aligned with `pyproject.toml`, including a dedicated `--sync-packaging` mode.
+- Regression tests covering `SystemExit` variants, tolerant output rendering, English signal messages, and ValueError mappings on Windows.
 
 ### Changed
-- Robust SystemExit handling in `get_system_exit_code` (handles `None`, strings, and non‑int codes safely). Behavior remains backwards‑compatible for common cases.
-- OS mapping now uses `os.name == 'posix'` instead of `sys.builtin_module_names`.
-- `_print_output` now accepts `bytes` or `str` for `stdout`/`stderr` and avoids assertions; decodes bytes with UTF‑8 and `errors='replace'`.
-- CLI signal messages switched to English: “Aborted (SIGINT).”, “Terminated (SIGTERM/SIGBREAK).”, “Terminated (SIGBREAK).”.
-- Metadata lookup in `__init__conf__` resolved once and reused.
-- Coverage gate relaxed to 80% and removed `# pragma: no cover` comments.
-- Quickstart notebook defaults to install from GitHub; added cell IDs; last cell prints exit code example instead of exiting.
-- Repartitioned the exit tooling into `core`, `adapters`, and `application` packages with `lib_cli_exit_tools` now acting as a facade to preserve import paths.
-- `run_cli` accepts injectable `exception_handler` and `signal_installer` hooks; CLI rich-click configuration now runs during `main()` execution instead of at import time.
+- Hardened `get_system_exit_code` handling for non-integer payloads and switched OS detection to `os.name`.
+- Updated `_print_output` to decode both `bytes` and `str`, trimming assertions in favour of resilient diagnostics.
+- Standardised signal messages (“Aborted (SIGINT).”, etc.) and cached metadata lookups in `__init__conf__`.
+- Enforced an 85% coverage threshold (in line with `pyproject.toml` and Codecov settings) and removed spurious coverage pragmas to reflect the new test suite.
+- Repartitioned the library into `core`, `adapters`, and `application` layers with `lib_cli_exit_tools` acting as the facade.
+- `run_cli` now accepts injectable `exception_handler` and `signal_installer` hooks, and rich-click configuration is applied lazily from `main()`.
 
 ### Fixed
-- Pyright 3.10 compatibility in `__init__conf__` by typing to a minimal metadata protocol; resolved unknown `.get` errors.
-- Ruff F401 false positive on notebook by adding a per‑file ignore in `pyproject.toml`.
+- Restored Pyright compatibility by typing metadata helpers against a minimal protocol.
+- Removed a Ruff F401 false positive on the Quickstart notebook via per-file ignore.
 
-### Docs
-- README: documented packaging sync behavior and notebook usage.
-- CONTRIBUTING: clarified versioning (bump only `pyproject.toml` + `CHANGELOG.md`), and documented packaging sync workflow.
+### Documentation
+- Expanded the README with packaging sync guidance and notebook usage notes.
+- Clarified release steps in CONTRIBUTING and refreshed developer docs.
+
+## [1.4.0] - 2025-09-26
+
+### Changed
+- Refactored packaging automation and broadened the pytest suite to cover new CLI flows.
+
+## [1.3.1] - 2025-09-26
+
+### Fixed
+- Adjusted coloured traceback behaviour to address regressions introduced in 1.3.0.
+
+## [1.3.0] - 2025-09-25
+
+### Added
+- Introduced Rich-powered traceback rendering for CLI failures.
+
+## [1.2.0] - 2025-09-25
+
+### Changed
+- Switched the CLI stack to rich-click and delivered associated fixes.
+
+## [1.1.1] - 2025-09-18
+
+### Added
+- Documentation and doctest updates for newly exposed helpers.
+
+## [1.1.0] - 2025-09-16
+
+### Added
+- `lib_cli_exit_tools.run_cli` helper to reduce Click boilerplate (see `cli.py`).
+
+## [1.0.3] - 2025-09-16
+
+### Added
+- `make menu` target for the Textual-powered maintenance UI.
+
+## [1.0.2] - 2025-09-15
+
+### Changed
+- Miscellaneous internal improvements.
+
+## [1.0.1] - 2025-09-15
+
+### Changed
+- Miscellaneous internal improvements.
+
+## [1.0.0] - 2025-09-15
+
+### Added
+- Initial public release.
 
 ## [0.1.1] - 2025-09-15
 
-- _Describe changes here._
+### Added
+- Placeholder for early internal work.
 
 ## [0.1.0] - 2025-09-14
 
-- Unify package name to `lib_cli_exit_tools` (project name, module path, console scripts).
-- Fix public API imports in `__init__.py`.
-- Add `from __future__ import annotations` and module docstring.
-- Add tests for exit code mapping and CLI behavior.
-- Expand README and add Makefile; add dev extras (pytest/ruff/pyright).
+### Added
+- Unified package naming, tightened public API exports, and added tests for exit-code mapping and CLI behaviour.
 
 ## [0.0.1] - 2025-09-13
 
-- Initial public release.
-
----
-
-All notable changes to this project will be documented in this file.
-The format is based on Keep a Changelog, and this project adheres to
-Semantic Versioning (where applicable for add-on releases).
+### Added
+- Initial internal release.

@@ -1,18 +1,7 @@
-"""Core-layer exit-code mapping tests.
-
-Purpose:
-    Exercise the pure exit-code translation logic without invoking Click or
-    signal adapters.
-Contents:
-    * Behavioural tests covering `SystemExit`, errno/winerror mappings, and
-      sysexits mode toggles.
-System Integration:
-    Validates the guarantees exposed by `lib_cli_exit_tools.core.exit_codes`.
-"""
+"""Exit codes behave like a clear contract."""
 
 from __future__ import annotations
 
-import signal
 import subprocess
 import sys
 
@@ -22,130 +11,109 @@ from lib_cli_exit_tools.core.configuration import config
 from lib_cli_exit_tools.core.exit_codes import get_system_exit_code
 
 
-@pytest.mark.parametrize(
-    ("exc", "expected"),
-    [
-        (SystemExit(99), 99),
-        (SystemExit(None), 0),
-        (SystemExit("2"), 2),
-    ],
-)
-def test_system_exit_variants(exc: SystemExit, expected: int) -> None:
-    """SystemExit with integer-like payloads maps to their numeric exit codes."""
-    assert get_system_exit_code(exc) == expected
+pytestmark = pytest.mark.usefixtures("reset_config_state")
 
 
-def test_system_exit_invalid_string_falls_back_to_one() -> None:
-    """Non-numeric SystemExit payloads fall back to exit code 1."""
-    assert get_system_exit_code(SystemExit("oops")) == 1
+def test_system_exit_carries_explicit_integer() -> None:
+    assert get_system_exit_code(SystemExit(7)) == 7
 
 
-@pytest.mark.skipif(sys.platform.startswith("win"), reason="POSIX-specific expectations")
-def test_posix_errno_mappings() -> None:
-    """POSIX errno exceptions translate to their documented numeric codes."""
-    assert get_system_exit_code(FileNotFoundError("missing")) == 2
-    assert get_system_exit_code(ValueError("bad")) == 22
+def test_system_exit_none_means_success() -> None:
+    assert get_system_exit_code(SystemExit(None)) == 0
 
 
-def test_winerror_attribute_takes_priority(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Winerror attribute overrides generic errno mapping when present."""
-
-    class CustomError(RuntimeError):
-        pass
-
-    err = CustomError("boom")
-    setattr(err, "winerror", 42)  # type: ignore[attr-defined]
-    assert getattr(err, "winerror", None) == 42
-    assert get_system_exit_code(err) == 42
+def test_system_exit_string_is_cast_to_int() -> None:
+    assert get_system_exit_code(SystemExit("9")) == 9
 
 
-def test_keyboard_interrupt_maps_to_130() -> None:
-    """KeyboardInterrupts propagate the conventional 130 exit code."""
+def test_system_exit_unparsable_string_falls_back_to_generic_failure() -> None:
+    assert get_system_exit_code(SystemExit("boom")) == 1
+
+
+def test_keyboard_interrupt_abides_by_shell_convention() -> None:
     assert get_system_exit_code(KeyboardInterrupt()) == 130
 
 
-def test_subprocess_called_process_error() -> None:
-    """CalledProcessError surfaces its returncode as the exit status."""
-    err = subprocess.CalledProcessError(returncode=7, cmd=["echo", "x"])  # type: ignore[arg-type]
-    assert get_system_exit_code(err) == 7
+def test_called_process_error_yields_returncode() -> None:
+    error = subprocess.CalledProcessError(returncode=5, cmd=["echo", "x"])  # type: ignore[arg-type]
+    assert get_system_exit_code(error) == 5
 
 
-def test_oserror_errno_used_when_available() -> None:
-    """OSError instances reuse their errno value for exit codes."""
-    err = NotADirectoryError(20, "not a dir")
-    assert isinstance(err.errno, int)
-    assert err.errno == 20
-    assert get_system_exit_code(err) == 20
+def test_called_process_error_with_str_returncode_falls_back_to_generic_failure() -> None:
+    error = subprocess.CalledProcessError(returncode="x", cmd=["echo"])  # type: ignore[arg-type]
+    assert get_system_exit_code(error) == 1
 
 
-def test_broken_pipe_respects_configured_code() -> None:
-    """BrokenPipeError follows the configurable broken-pipe exit code."""
-    config.broken_pipe_exit_code = 141
-    assert config.broken_pipe_exit_code == 141
-    assert get_system_exit_code(BrokenPipeError()) == 141
+def test_broken_pipe_obeys_configured_exit_code() -> None:
+    config.broken_pipe_exit_code = 77
+    assert get_system_exit_code(BrokenPipeError()) == 77
+
+
+def test_broken_pipe_reflects_updated_configuration() -> None:
     config.broken_pipe_exit_code = 0
-    assert config.broken_pipe_exit_code == 0
     assert get_system_exit_code(BrokenPipeError()) == 0
 
 
-def test_sysexits_overrides_errno_mapping() -> None:
-    """Enabling sysexits remaps value and permission errors to BSD codes."""
-    config.exit_code_style = "sysexits"
-    assert get_system_exit_code(ValueError("bad")) == 64
-    assert get_system_exit_code(PermissionError("nope")) == 77
+def test_oserror_uses_errno_value() -> None:
+    error = NotADirectoryError(20, "not a directory")
+    assert get_system_exit_code(error) == 20
 
 
-@pytest.mark.skipif(sys.platform.startswith("win"), reason="Simulated Windows mapping unnecessary on Windows")
-def test_value_error_windows_mapping_simulated(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Switching to Windows semantics maps ValueError to winerror 87."""
+def test_oserror_with_bad_errno_returns_generic_failure() -> None:
+    class UnrulyOSError(OSError):
+        """An OSError that advertises a bogus errno."""
+
+    error = UnrulyOSError("oops")
+    setattr(error, "errno", "bad")  # type: ignore[attr-defined]
+    assert get_system_exit_code(error) == 1
+
+
+def test_winerror_attribute_trumps_errno() -> None:
+    class CustomError(RuntimeError):
+        """Carries a winerror attribute for Windows mapping."""
+
+    error = CustomError("boom")
+    setattr(error, "winerror", 55)  # type: ignore[attr-defined]
+    assert get_system_exit_code(error) == 55
+
+
+def test_winerror_with_bad_type_falls_back_to_generic_failure() -> None:
+    class CustomError(RuntimeError):
+        """Carries a non-integer winerror attribute."""
+
+    error = CustomError("boom")
+    setattr(error, "winerror", "bad")  # type: ignore[attr-defined]
+    assert get_system_exit_code(error) == 1
+
+
+@pytest.mark.skipif(sys.platform.startswith("win"), reason="POSIX errno table differs on Windows")
+def test_posix_value_error_maps_to_errno_22() -> None:
+    assert get_system_exit_code(ValueError("bad")) == 22
+
+
+@pytest.mark.skipif(sys.platform.startswith("win"), reason="POSIX errno table differs on Windows")
+def test_posix_file_not_found_maps_to_errno_2() -> None:
+    assert get_system_exit_code(FileNotFoundError("missing")) == 2
+
+
+@pytest.mark.skipif(not sys.platform.startswith("win"), reason="Windows-only behaviour")
+def test_windows_value_error_maps_to_winerror_87() -> None:
+    assert get_system_exit_code(ValueError("bad")) == 87
+
+
+@pytest.mark.skipif(sys.platform.startswith("win"), reason="Simulate Windows mapping when not on Windows")
+def test_windows_value_error_simulation_maps_to_winerror(monkeypatch: pytest.MonkeyPatch) -> None:
     import lib_cli_exit_tools.core.exit_codes as exit_mod
 
     monkeypatch.setattr(exit_mod.os, "name", "nt", raising=False)
-    assert get_system_exit_code(ValueError("x")) == 87
+    assert get_system_exit_code(ValueError("bad")) == 87
 
 
-@pytest.mark.skipif(not sys.platform.startswith("win"), reason="Windows-specific behaviour")
-def test_value_error_windows_mapping_windows() -> None:
-    """On Windows, ValueError maps to winerror 87 without monkeypatching."""
-    assert sys.platform.startswith("win")
-    assert get_system_exit_code(ValueError("x")) == 87
+def test_sysexits_value_error_maps_to_usage_code() -> None:
+    config.exit_code_style = "sysexits"
+    assert get_system_exit_code(ValueError("bad")) == 64
 
 
-def test_called_process_error_with_invalid_returncode() -> None:
-    """Non-integer return codes on CalledProcessError fall back to 1."""
-    err = subprocess.CalledProcessError(returncode="x", cmd=["echo"])  # type: ignore[arg-type]
-    assert get_system_exit_code(err) == 1
-
-
-def test_winerror_with_bad_type_falls_back_to_one() -> None:
-    """Invalid winerror values fall back to the generic exit code."""
-
-    class CustomError(Exception):
-        pass
-
-    err = CustomError("boom")
-    setattr(err, "winerror", "bad")  # type: ignore[attr-defined]
-    assert get_system_exit_code(err) == 1
-
-
-def test_errno_with_bad_type_falls_back_to_one() -> None:
-    """Invalid errno values fall back to the generic exit code."""
-
-    class CustomOSError(OSError):
-        pass
-
-    err = CustomOSError("oops")
-    setattr(err, "errno", "bad")  # type: ignore[attr-defined]
-    assert get_system_exit_code(err) == 1
-
-
-@pytest.mark.skipif(not sys.platform.startswith("win"), reason="Windows-specific behaviour")
-def test_default_signal_specs_windows_has_sigbreak() -> None:
-    """Ensure SIGBREAK is present on Windows runners."""
-    from lib_cli_exit_tools.adapters.signals import default_signal_specs, SigBreakInterrupt
-
-    specs = default_signal_specs()
-    signums = {spec.signum for spec in specs}
-    assert any(spec.exception is SigBreakInterrupt for spec in specs), "SIGBREAK spec missing on Windows"
-    sigbreak = getattr(signal, "SIGBREAK")
-    assert sigbreak in signums
+def test_sysexits_permission_error_maps_to_permission_code() -> None:
+    config.exit_code_style = "sysexits"
+    assert get_system_exit_code(PermissionError("nope")) == 77

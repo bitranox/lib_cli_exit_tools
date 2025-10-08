@@ -16,57 +16,104 @@ System Integration:
 from __future__ import annotations
 
 import os
-import subprocess
+import subprocess  # nosec B404 - imported for CalledProcessError type inspection
+from typing import Callable, Iterable, Mapping
 
 from .configuration import config
 
 __all__ = ["get_system_exit_code"]
 
+Resolver = Callable[[BaseException], int | None]
+
 
 def get_system_exit_code(exc: BaseException) -> int:
-    """Map an exception to an OS-appropriate exit status.
+    """Map an exception to an OS-appropriate exit status."""
 
-    Why:
-        Provide a predictable fallback when Click or signal-specific handlers do
-        not supply an explicit exit code.
-    Parameters:
-        exc: Exception raised by application logic.
-    Returns:
-        Integer exit code honouring Windows ``winerror`` values, POSIX ``errno``
-        codes, or BSD ``sysexits`` depending on :data:`config`.
-        (POSIX maps ``ValueError`` to 22, while Windows maps it to 87.)
-    Side Effects:
-        None.
-    Examples:
-        >>> get_system_exit_code(ValueError("bad input")) in {22, 87}
-        True
-    """
+    for resolver in _resolver_chain():
+        code = resolver(exc)
+        if code is not None:
+            return code
+    return 1
 
-    if isinstance(exc, subprocess.CalledProcessError):
-        try:
-            return int(exc.returncode)
-        except Exception:
-            return 1
 
+def _resolver_chain() -> Iterable[Resolver]:
+    """Return resolvers in the order we honour them."""
+
+    return (
+        _code_from_called_process_error,
+        _code_from_keyboard_interrupt,
+        _code_from_winerror_attribute,
+        _code_from_broken_pipe,
+        _code_from_errno,
+        _code_from_system_exit,
+        _code_from_sysexits_mode,
+        _code_from_platform_mapping,
+    )
+
+
+def _code_from_called_process_error(exc: BaseException) -> int | None:
+    if not isinstance(exc, subprocess.CalledProcessError):
+        return None
+    return _safe_int(getattr(exc, "returncode", None)) or 1
+
+
+def _code_from_keyboard_interrupt(exc: BaseException) -> int | None:
     if isinstance(exc, KeyboardInterrupt):
         return 130
+    return None
 
-    if hasattr(exc, "winerror"):
-        try:
-            return int(getattr(exc, "winerror"))  # type: ignore[arg-type]
-        except (AttributeError, TypeError, ValueError):
-            pass
 
+def _code_from_winerror_attribute(exc: BaseException) -> int | None:
+    if not hasattr(exc, "winerror"):
+        return None
+    return _safe_int(getattr(exc, "winerror"))
+
+
+def _code_from_broken_pipe(exc: BaseException) -> int | None:
     if isinstance(exc, BrokenPipeError):
         return int(config.broken_pipe_exit_code)
+    return None
 
-    if isinstance(exc, OSError) and getattr(exc, "errno", None) is not None:
-        try:
-            return int(exc.errno)  # type: ignore[arg-type]
-        except Exception:
-            pass
 
-    posix_exceptions = {
+def _code_from_errno(exc: BaseException) -> int | None:
+    if not isinstance(exc, OSError):
+        return None
+    return _safe_int(getattr(exc, "errno", None))
+
+
+def _code_from_system_exit(exc: BaseException) -> int | None:
+    if not isinstance(exc, SystemExit):
+        return None
+
+    code = getattr(exc, "code", None)
+    if isinstance(code, int):
+        return code
+    if code is None:
+        return 0
+    return _safe_int(str(code)) or 1
+
+
+def _code_from_sysexits_mode(exc: BaseException) -> int | None:
+    if config.exit_code_style != "sysexits":
+        return None
+    return _sysexits_mapping(exc)
+
+
+def _code_from_platform_mapping(exc: BaseException) -> int | None:
+    for exc_type, code in _platform_exception_map().items():
+        if isinstance(exc, exc_type):
+            return code
+    return None
+
+
+def _platform_exception_map() -> Mapping[type[BaseException], int]:
+    if os.name == "posix":
+        return _posix_exception_map()
+    return _windows_exception_map()
+
+
+def _posix_exception_map() -> Mapping[type[BaseException], int]:
+    return {
         FileNotFoundError: 2,
         PermissionError: 13,
         FileExistsError: 17,
@@ -77,7 +124,10 @@ def get_system_exit_code(exc: BaseException) -> int:
         ValueError: 22,
         RuntimeError: 1,
     }
-    windows_exceptions = {
+
+
+def _windows_exception_map() -> Mapping[type[BaseException], int]:
+    return {
         FileNotFoundError: 2,
         PermissionError: 5,
         FileExistsError: 80,
@@ -89,29 +139,14 @@ def get_system_exit_code(exc: BaseException) -> int:
         RuntimeError: 1,
     }
 
-    if isinstance(exc, SystemExit):
-        code = getattr(exc, "code", None)
-        if isinstance(code, int):
-            return code
-        if code is None:
-            return 0
-        try:
-            return int(str(code))
-        except Exception:
-            return 1
 
-    if config.exit_code_style == "sysexits":
-        return _sysexits_mapping(exc)
-
-    if os.name == "posix":
-        exceptions = posix_exceptions
-    else:
-        exceptions = windows_exceptions
-    for exception, code in exceptions.items():
-        if isinstance(exc, exception):
-            return code
-
-    return 1
+def _safe_int(value: object | None) -> int | None:
+    try:
+        if value is None:
+            return None
+        return int(value)  # type: ignore[arg-type]
+    except Exception:
+        return None
 
 
 def _sysexits_mapping(exc: BaseException) -> int:

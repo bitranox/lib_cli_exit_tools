@@ -16,6 +16,7 @@ System Integration:
 from __future__ import annotations
 
 import signal
+from contextlib import suppress
 from dataclasses import dataclass
 from types import FrameType
 from typing import Callable, Iterable, List, Sequence
@@ -75,65 +76,16 @@ _Handler = Callable[[int, FrameType | None], None]
 
 
 def default_signal_specs(extra: Iterable[SignalSpec] | None = None) -> List[SignalSpec]:
-    """Build the default list of signal specifications for the host platform.
+    """Build the default list of signal specifications for the host platform."""
 
-    Why:
-        Ensure every CLI managed by this project responds consistently to Ctrl+C
-        and termination signals without duplicating configuration.
-    Parameters:
-        extra: Optional iterable of additional :class:`SignalSpec` records that
-            extend the standard platform-aware set.
-    Returns:
-        Fresh list of :class:`SignalSpec` entries ready for
-        :func:`install_signal_handlers` or :func:`handle_cli_exception`.
-    """
-
-    specs: List[SignalSpec] = [
-        SignalSpec(
-            signum=signal.SIGINT,
-            exception=SigIntInterrupt,
-            message="Aborted (SIGINT).",
-            exit_code=130,
-        )
-    ]
-
-    if hasattr(signal, "SIGTERM"):
-        specs.append(
-            SignalSpec(
-                signum=getattr(signal, "SIGTERM"),
-                exception=SigTermInterrupt,
-                message="Terminated (SIGTERM/SIGBREAK).",
-                exit_code=143,
-            )
-        )
-    if hasattr(signal, "SIGBREAK"):
-        specs.append(
-            SignalSpec(
-                signum=getattr(signal, "SIGBREAK"),
-                exception=SigBreakInterrupt,
-                message="Terminated (SIGBREAK).",
-                exit_code=149,
-            )
-        )
-
+    specs: List[SignalSpec] = _standard_signal_specs()
     if extra is not None:
         specs.extend(extra)
-
     return specs
 
 
 def _make_raise_handler(exc_type: type[BaseException]) -> _Handler:
-    """Wrap ``exc_type`` in a signal-compatible callable.
-
-    Why:
-        ``signal.signal`` expects handlers with a ``(signum, frame)`` signature.
-        The returned closure ignores those arguments and raises ``exc_type``
-        immediately so higher layers see a structured exception.
-    Parameters:
-        exc_type: Exception subclass to raise when the signal fires.
-    Returns:
-        Callable compatible with ``signal.signal`` registration.
-    """
+    """Wrap ``exc_type`` in a signal-compatible callable."""
 
     def _handler(signo: int, frame: FrameType | None) -> None:  # pragma: no cover - just raises
         raise exc_type()
@@ -142,36 +94,77 @@ def _make_raise_handler(exc_type: type[BaseException]) -> _Handler:
 
 
 def install_signal_handlers(specs: Sequence[SignalSpec] | None = None) -> Callable[[], None]:
-    """Install signal handlers that re-raise as structured exceptions.
+    """Install signal handlers that re-raise as structured exceptions."""
 
-    Why:
-        Centralise signal wiring so CLI entry points can opt in with a single
-        call and reliably restore previous handlers afterwards.
-    Parameters:
-        specs: Iterable of :class:`SignalSpec` entries. When omitted the
-            platform-aware defaults from :func:`default_signal_specs` are used.
-    Returns:
-        Callable that restores the prior handlers. Invoke it in ``finally`` to
-        avoid leaking process-wide state into callers or tests.
-    """
+    active_specs = _choose_specs(specs)
+    previous = _register_handlers(active_specs)
+    return lambda: _restore_handlers(previous)
 
-    active_specs = list(default_signal_specs() if specs is None else specs)
+
+def _choose_specs(specs: Sequence[SignalSpec] | None) -> List[SignalSpec]:
+    if specs is None:
+        return default_signal_specs()
+    return list(specs)
+
+
+def _register_handlers(specs: Sequence[SignalSpec]) -> List[tuple[int, object]]:
     previous: List[tuple[int, object]] = []
-
-    for spec in active_specs:
+    for spec in specs:
         handler = _make_raise_handler(spec.exception)
-        try:
-            current = signal.getsignal(spec.signum)
-            signal.signal(spec.signum, handler)
-            previous.append((spec.signum, current))
-        except (AttributeError, OSError, RuntimeError):  # pragma: no cover - platform differences
-            continue
+        _install_handler(spec.signum, handler, previous)
+    return previous
 
-    def restore() -> None:
-        for signum, prior in previous:
-            try:
-                signal.signal(signum, prior)  # type: ignore[arg-type]
-            except Exception:  # pragma: no cover - restore best-effort
-                pass
 
-    return restore
+def _install_handler(signum_value: int, handler: _Handler, previous: List[tuple[int, object]]) -> None:
+    try:
+        current = signal.getsignal(signum_value)
+        signal.signal(signum_value, handler)
+        previous.append((signum_value, current))
+    except (AttributeError, OSError, RuntimeError):  # pragma: no cover - platform differences
+        return
+
+
+def _restore_handlers(previous: Sequence[tuple[int, object]]) -> None:
+    for signum_value, prior in previous:
+        with suppress(Exception):  # pragma: no cover - restore best-effort
+            signal.signal(signum_value, prior)  # type: ignore[arg-type]
+
+
+def _standard_signal_specs() -> List[SignalSpec]:
+    specs: List[SignalSpec] = [_sigint_spec()]
+    specs.extend(_optional_specs())
+    return specs
+
+
+def _sigint_spec() -> SignalSpec:
+    return SignalSpec(
+        signum=signal.SIGINT,
+        exception=SigIntInterrupt,
+        message="Aborted (SIGINT).",
+        exit_code=130,
+    )
+
+
+def _optional_specs() -> Iterable[SignalSpec]:
+    yield from _maybe_sigterm_spec()
+    yield from _maybe_sigbreak_spec()
+
+
+def _maybe_sigterm_spec() -> Iterable[SignalSpec]:
+    if hasattr(signal, "SIGTERM"):
+        yield SignalSpec(
+            signum=getattr(signal, "SIGTERM"),
+            exception=SigTermInterrupt,
+            message="Terminated (SIGTERM/SIGBREAK).",
+            exit_code=143,
+        )
+
+
+def _maybe_sigbreak_spec() -> Iterable[SignalSpec]:
+    if hasattr(signal, "SIGBREAK"):
+        yield SignalSpec(
+            signum=getattr(signal, "SIGBREAK"),
+            exception=SigBreakInterrupt,
+            message="Terminated (SIGBREAK).",
+            exit_code=149,
+        )

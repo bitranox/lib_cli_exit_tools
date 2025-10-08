@@ -18,9 +18,9 @@ System Integration:
 
 from __future__ import annotations
 
-import contextlib
 import sys
-from typing import Callable, Literal, Optional, Protocol, Sequence, TextIO, cast
+from contextlib import suppress
+from typing import Callable, Iterable, Literal, Optional, Protocol, Sequence, TextIO, cast
 
 import rich_click as click
 from rich_click import rich_click as rich_config
@@ -80,24 +80,24 @@ def _default_echo(message: str, *, err: bool = True) -> None:
 
 
 def flush_streams() -> None:
-    """Best-effort flush of ``stdout`` and ``stderr`` to avoid buffered loss.
+    """Best-effort flush of ``stdout`` and ``stderr`` to avoid buffered loss."""
 
-    Why:
-        When Click raises an exception it can leave output buffered. Flushing
-        ensures diagnostics reach the terminal before the process exits.
-    Side Effects:
-        Invokes ``flush`` on standard streams and suppresses unexpected errors
-        from non-standard stream objects.
-    """
+    for stream in _streams_to_flush():
+        _flush_stream(stream)
 
+
+def _streams_to_flush() -> Iterable[object]:
     for stream_name in ("stdout", "stderr"):
         stream = getattr(sys, stream_name, None)
-        flush = getattr(stream, "flush", None)
-        if callable(flush):  # pragma: no branch - simple guard
-            try:
-                flush()
-            except Exception:  # pragma: no cover - best effort
-                pass
+        if stream is not None:
+            yield stream
+
+
+def _flush_stream(stream: object) -> None:
+    flush = getattr(stream, "flush", None)
+    if callable(flush):  # pragma: no branch - simple guard
+        with suppress(Exception):  # pragma: no cover - best effort
+            flush()
 
 
 def _build_console(
@@ -133,41 +133,28 @@ def _build_console(
 
 
 def _print_output(exc_info: object, attr: str, stream: Optional[TextIO] = None) -> None:
-    """Print captured subprocess output stored on an exception.
-
-    Why:
-        :class:`subprocess.CalledProcessError` stores ``stdout``/``stderr`` on the
-        exception instance. Surfacing that context aids debugging CLI wrappers.
-    Parameters:
-        exc_info: Exception potentially carrying process output attributes.
-        attr: Attribute name to inspect (``"stdout"`` or ``"stderr"``).
-        stream: Target stream; defaults to ``sys.stderr``.
-    Side Effects:
-        Writes decoded output prefixed with the attribute name when available.
-    """
+    """Print captured subprocess output stored on an exception."""
 
     target = stream or sys.stderr
-
     if not hasattr(exc_info, attr):
         return
 
-    output = getattr(exc_info, attr)
-    if output is None:
-        return
-
-    text: Optional[str]
-    if isinstance(output, bytes):
-        try:
-            text = output.decode("utf-8", errors="replace")
-        except Exception:
-            text = None
-    elif isinstance(output, str):
-        text = output
-    else:
-        text = None
-
+    text = _decode_output(getattr(exc_info, attr))
     if text:
         print(f"{attr.upper()}: {text}", file=target)
+
+
+def _decode_output(output: object) -> Optional[str]:
+    if output is None:
+        return None
+    if isinstance(output, bytes):
+        try:
+            return output.decode("utf-8", errors="replace")
+        except Exception:
+            return None
+    if isinstance(output, str):
+        return output
+    return None
 
 
 def print_exception_message(
@@ -193,42 +180,68 @@ def print_exception_message(
 
     flush_streams()
 
-    target_stream = stream or sys.stderr
-    exc_info = sys.exc_info()[1]
+    exc_info = _active_exception()
     if exc_info is None:
         return
 
-    _print_output(exc_info, "stdout", target_stream)
-    _print_output(exc_info, "stderr", target_stream)
+    target_stream = stream or sys.stderr
+    _emit_subprocess_output(exc_info, target_stream)
 
-    force_terminal = True if config.traceback_force_color else None
-    color_system: RichColorSystem | None = "auto" if config.traceback_force_color else None
-    console = _build_console(
-        target_stream,
-        force_terminal=force_terminal,
-        color_system=color_system,
-    )
-
+    console = _console_for_tracebacks(target_stream)
     if trace_back:
-        tb_renderable = Traceback.from_exception(
-            type(exc_info),
-            exc_info,
-            exc_info.__traceback__,
-            show_locals=False,
-        )
-        console.print(tb_renderable)
+        _render_traceback(console, exc_info)
     else:
-        message = Text(
-            f"{type(exc_info).__name__}: {exc_info}",
-            style="bold red",
-        )
-        if len(message.plain) > length_limit:
-            truncated = f"{message.plain[:length_limit]} ... [TRUNCATED at {length_limit} characters]"
-            message = Text(truncated, style="bold red")
-        console.print(message)
+        _render_summary(console, exc_info, length_limit)
 
-    console.file.flush()
+    _finalise_console(console)
     flush_streams()
+
+
+def _active_exception() -> BaseException | None:
+    return sys.exc_info()[1]
+
+
+def _emit_subprocess_output(exc_info: BaseException, stream: TextIO) -> None:
+    for attr in ("stdout", "stderr"):
+        _print_output(exc_info, attr, stream)
+
+
+def _console_for_tracebacks(stream: TextIO) -> Console:
+    force_terminal, color_system = _traceback_colour_preferences()
+    return _build_console(stream, force_terminal=force_terminal, color_system=color_system)
+
+
+def _traceback_colour_preferences() -> tuple[bool | None, RichColorSystem | None]:
+    if config.traceback_force_color:
+        return True, "auto"
+    return None, None
+
+
+def _render_traceback(console: Console, exc_info: BaseException) -> None:
+    renderable = Traceback.from_exception(
+        type(exc_info),
+        exc_info,
+        exc_info.__traceback__,
+        show_locals=False,
+    )
+    console.print(renderable)
+
+
+def _render_summary(console: Console, exc_info: BaseException, length_limit: int) -> None:
+    message = Text(f"{type(exc_info).__name__}: {exc_info}", style="bold red")
+    summary = _truncate_message(message, length_limit)
+    console.print(summary)
+
+
+def _truncate_message(message: Text, length_limit: int) -> Text:
+    if len(message.plain) <= length_limit:
+        return message
+    truncated = f"{message.plain[:length_limit]} ... [TRUNCATED at {length_limit} characters]"
+    return Text(truncated, style=message.style)
+
+
+def _finalise_console(console: Console) -> None:
+    console.file.flush()
 
 
 def handle_cli_exception(
@@ -253,32 +266,75 @@ def handle_cli_exception(
         rich tracebacks when requested.
     """
 
-    specs = list(default_signal_specs() if signal_specs is None else signal_specs)
+    specs = _resolve_signal_specs(signal_specs)
     echo_fn = echo if echo is not None else _default_echo
 
+    code = _signal_exit_code(exc, specs, echo_fn)
+    if code is not None:
+        return code
+
+    code = _broken_pipe_exit(exc)
+    if code is not None:
+        return code
+
+    code = _click_exit_code(exc)
+    if code is not None:
+        return code
+
+    code = _system_exit_code(exc)
+    if code is not None:
+        return code
+
+    return _render_and_translate(exc)
+
+
+def _resolve_signal_specs(specs: Sequence[SignalSpec] | None) -> Sequence[SignalSpec]:
+    return specs if specs is not None else default_signal_specs()
+
+
+def _signal_exit_code(exc: BaseException, specs: Sequence[SignalSpec], echo: _Echo) -> int | None:
     for spec in specs:
         if isinstance(exc, spec.exception):
-            echo_fn(spec.message, err=True)
+            echo(spec.message, err=True)
             return spec.exit_code
+    return None
 
+
+def _broken_pipe_exit(exc: BaseException) -> int | None:
     if isinstance(exc, BrokenPipeError):
         return int(config.broken_pipe_exit_code)
+    return None
 
+
+def _click_exit_code(exc: BaseException) -> int | None:
     if isinstance(exc, click.ClickException):
         exc.show()
         return exc.exit_code
+    return None
 
-    if isinstance(exc, SystemExit):
-        with contextlib.suppress(Exception):
-            return int(exc.code or 0)
-        return 1
 
-    if config.traceback:
-        print_exception_message(trace_back=True)
-        return get_system_exit_code(exc)
+def _system_exit_code(exc: BaseException) -> int | None:
+    if not isinstance(exc, SystemExit):
+        return None
+    return _safe_system_exit_code(exc)
 
-    print_exception_message()
+
+def _safe_system_exit_code(exc: SystemExit) -> int:
+    with suppress(Exception):
+        return int(exc.code or 0)
+    return 1
+
+
+def _render_and_translate(exc: BaseException) -> int:
+    _print_exception_with_active_mode()
     return get_system_exit_code(exc)
+
+
+def _print_exception_with_active_mode() -> None:
+    try:
+        print_exception_message(trace_back=config.traceback)
+    except TypeError:
+        print_exception_message()
 
 
 def run_cli(
@@ -315,23 +371,47 @@ def run_cli(
         flush IO streams.
     """
 
-    specs = list(default_signal_specs() if signal_specs is None else signal_specs)
-
-    installer_fn = signal_installer or install_signal_handlers
-    restore = installer_fn(specs) if install_signals else None
-
-    def _default_handler(exc: BaseException) -> int:
-        return handle_cli_exception(exc, signal_specs=specs)
-
-    handler = exception_handler or _default_handler
+    specs = _resolve_signal_specs(signal_specs)
+    handler = exception_handler or _default_exception_handler(specs)
+    restore = _maybe_install_signals(install_signals, signal_installer, specs)
 
     try:
-        args_list = list(argv) if argv is not None else None
-        cli.main(args=args_list, standalone_mode=False, prog_name=prog_name)
+        _invoke_command(cli, argv, prog_name)
         return 0
     except BaseException as exc:  # noqa: BLE001 - single funnel for exit codes
         return handler(exc)
     finally:
-        if restore is not None:
-            restore()
+        _restore_handlers_if_needed(restore)
         flush_streams()
+
+
+def _default_exception_handler(specs: Sequence[SignalSpec]) -> Callable[[BaseException], int]:
+    def _handler(exc: BaseException) -> int:
+        return handle_cli_exception(exc, signal_specs=specs)
+
+    return _handler
+
+
+def _maybe_install_signals(
+    install_signals: bool,
+    signal_installer: Callable[[Sequence[SignalSpec] | None], Callable[[], None]] | None,
+    specs: Sequence[SignalSpec],
+) -> Callable[[], None] | None:
+    if not install_signals:
+        return None
+    installer = signal_installer or install_signal_handlers
+    return installer(specs)
+
+
+def _invoke_command(cli: ClickCommand, argv: Sequence[str] | None, prog_name: str | None) -> None:
+    cli.main(args=_normalised_args(argv), standalone_mode=False, prog_name=prog_name)
+
+
+def _normalised_args(argv: Sequence[str] | None) -> Sequence[str] | None:
+    return list(argv) if argv is not None else None
+
+
+def _restore_handlers_if_needed(restore: Callable[[], None] | None) -> None:
+    if restore is None:
+        return
+    restore()

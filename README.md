@@ -19,6 +19,8 @@ Small helpers for robust CLI exit handling:
 
 ## Install
 
+Requires Python 3.13 or newer.
+
 ```bash
 pip install lib_cli_exit_tools
 ```
@@ -107,11 +109,23 @@ config.broken_pipe_exit_code = 0     # treat BrokenPipeError as a benign truncat
 
 Field reference:
 
-- `traceback` (`bool`, default `False`): when `True`, unhandled exceptions bubble up so you see the full traceback. The bundled CLI toggles this via `--traceback/--no-traceback`.
+- `traceback` (`bool`, default `False`): when `True`, `handle_cli_exception` renders a full Rich traceback to stderr and then returns a non-zero exit code. The original exception is not re-raised; callers should rely on the rendered output and returned status. The bundled CLI toggles this via `--traceback/--no-traceback`.
 - `exit_code_style` (`"errno"` or `"sysexits"`, default `"errno"`): controls the numeric mapping produced by `get_system_exit_code`. `errno` returns POSIX/Windows-style codes (e.g., `FileNotFoundError → 2`, `SIGINT → 130`); `sysexits` returns BSD-style semantic codes (`EX_NOINPUT`, `EX_USAGE`, etc.).
 - `broken_pipe_exit_code` (`int`, default `141`): overrides the exit status when a `BrokenPipeError` is raised (the default mirrors `128 + SIGPIPE`). Set this to `0` if you want truncation to be treated as success.
 
-Remember that `config` is module-level—if you call the library from multiple threads or embed it in another CLI, configure it once during bootstrap before handing control to user code.
+Remember that `config` is module-level—if you call the library from multiple threads or embed it in another CLI, configure it once during bootstrap before handing control to user code. When you need temporary overrides (for tests or nested CLIs), wrap the change with the built-in context manager so state is restored automatically:
+
+```python
+from lib_cli_exit_tools import config_overrides, config
+
+with config_overrides(traceback=True):
+    # tracebacks enabled only within this block
+    run_something()
+
+# state restored to previous values here
+```
+
+To return to baseline defaults, call `lib_cli_exit_tools.reset_config()`.
 
 ## Public API Reference
 
@@ -152,7 +166,7 @@ Parameters:
 - `exc`: Exception instance to classify.
 
 ### `print_exception_message(trace_back=config.traceback, length_limit=500, stream=None) -> None`
-Emit the active exception using Rich formatting. Produces a coloured traceback when `trace_back` is `True`, otherwise prints a truncated summary in red. Respects `config.traceback_force_color`.
+Emit the active exception using Rich formatting. Produces a coloured traceback when `trace_back` is `True`, otherwise prints a truncated summary in red. Respects `config.traceback_force_color` and mirrors the behaviour of `handle_cli_exception` (tracebacks are rendered before the helper returns an exit status).
 
 Parameters:
 - `trace_back`: Toggle between full traceback rendering (`True`) and short summary (`False`).

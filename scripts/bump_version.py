@@ -356,6 +356,7 @@ def _brew_set_source_tag(text: str, version: str) -> tuple[str, bool]:
         text = new_text
     # Try to fetch tarball and compute sha256; replace first sha256 occurrence (main formula)
     tar_url = PROJECT_META.github_tarball_url(version)
+    sha: str | None = None
     if tar_url:
         try:
             with urllib.request.urlopen(tar_url, timeout=10) as resp:
@@ -368,6 +369,36 @@ def _brew_set_source_tag(text: str, version: str) -> tuple[str, bool]:
                 changed = True
         except Exception:
             pass
+
+    if sha:
+        lines = text.splitlines()
+
+        def _is_orphan(line: str) -> bool:
+            stripped = line.strip()
+            if not stripped:
+                return False
+            if stripped.startswith("sha256 "):
+                return True
+            allowed = set('0123456789abcdef"{}')
+            return all(ch in allowed for ch in stripped)
+
+        url_idx = next((idx for idx, line in enumerate(lines) if line.lstrip().startswith("url ")), None)
+        if url_idx is not None:
+            url_line = lines[url_idx]
+            indent = url_line[: len(url_line) - len(url_line.lstrip())]
+            j = url_idx + 1
+            while j < len(lines):
+                if _is_orphan(lines[j]):
+                    lines.pop(j)
+                    continue
+                break
+            lines.insert(url_idx + 1, f'{indent}sha256 "{sha}"')
+            text_new = "\n".join(lines)
+            if text.endswith("\n") and not text_new.endswith("\n"):
+                text_new += "\n"
+            if text_new != text:
+                text = text_new
+                changed = True
     return text, changed
 
 

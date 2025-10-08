@@ -6,6 +6,8 @@ Purpose:
     layered modules.
 Contents:
     * ``config`` from :mod:`lib_cli_exit_tools.core.configuration`.
+    * ``config_overrides`` and ``reset_config`` helpers to manage configuration
+      state safely during temporary tweaks.
     * ``get_system_exit_code`` from :mod:`lib_cli_exit_tools.core.exit_codes`.
     * ``handle_cli_exception`` and ``run_cli`` from
       :mod:`lib_cli_exit_tools.application.runner`.
@@ -34,7 +36,7 @@ from .application.runner import (
     print_exception_message,
     run_cli,
 )
-from .core.configuration import config
+from .core.configuration import config, config_overrides, reset_config
 from .core.exit_codes import get_system_exit_code
 
 __all__ = [
@@ -52,6 +54,8 @@ __all__ = [
     "handle_cli_exception",
     "i_should_fail",
     "run_cli",
+    "config_overrides",
+    "reset_config",
 ]
 
 

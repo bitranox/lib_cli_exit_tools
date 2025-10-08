@@ -19,12 +19,14 @@ from .lib_cli_exit_tools import (
     SigTermInterrupt,
     SignalSpec,
     config,
+    config_overrides,
     default_signal_specs,
     flush_streams,
     get_system_exit_code,
     handle_cli_exception,
     install_signal_handlers,
     print_exception_message,
+    reset_config,
     i_should_fail,
     run_cli,
 )
@@ -32,6 +34,7 @@ from .lib_cli_exit_tools import (
 #: Public API surface guaranteed by semantic versioning.
 __all__ = [
     "config",
+    "config_overrides",
     "get_system_exit_code",
     "print_exception_message",
     "flush_streams",
@@ -44,5 +47,6 @@ __all__ = [
     "install_signal_handlers",
     "handle_cli_exception",
     "i_should_fail",
+    "reset_config",
     "run_cli",
 ]

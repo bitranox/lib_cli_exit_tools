@@ -4,7 +4,7 @@ Purpose:
     Provide automatic configuration resets so tests remain isolated without
     repeating setup/teardown logic in each module.
 Contents:
-    * ``reset_config`` fixture restoring the global CLI configuration.
+    * ``reset_config_state`` fixture restoring the global CLI configuration.
 System Integration:
     Imported implicitly by every pytest module to enforce clean state across
     layered test suites.
@@ -16,21 +16,13 @@ from collections.abc import Iterator
 
 import pytest
 
-from lib_cli_exit_tools.core.configuration import config
+from lib_cli_exit_tools.core.configuration import config_overrides, reset_config
 
 
 @pytest.fixture(autouse=True)
-def reset_config() -> Iterator[None]:
-    """Restore global CLI configuration between tests."""
+def reset_config_state() -> Iterator[None]:
+    """Ensure each test sees default configuration state and restores it."""
 
-    traceback_value = config.traceback
-    exit_code_style_value = config.exit_code_style
-    broken_pipe_exit_code_value = config.broken_pipe_exit_code
-    traceback_force_color_value = config.traceback_force_color
-    try:
+    reset_config()
+    with config_overrides():
         yield
-    finally:
-        config.traceback = traceback_value
-        config.exit_code_style = exit_code_style_value
-        config.broken_pipe_exit_code = broken_pipe_exit_code_value
-        config.traceback_force_color = traceback_force_color_value

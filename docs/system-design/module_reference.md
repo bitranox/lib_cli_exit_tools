@@ -19,11 +19,10 @@ Complete
 * `src/lib_cli_exit_tools/__init__.py`
 * `src/lib_cli_exit_tools/__main__.py`
 * `pyproject.toml` (`[project]` metadata, console scripts)
-* `tests/test_exit_tools.py`
-* `tests/test_cli.py`
-* `tests/test_cli_extra.py`
-* `tests/test_extend_cli.py`
-* `tests/test_lib_extra.py`
+* `tests/core/test_exit_codes.py`
+* `tests/application/test_runner.py`
+* `tests/adapters/test_signals.py`
+* `tests/cli/test_cli_entrypoints.py`
 
 ---
 
@@ -45,9 +44,9 @@ Automations and downstream CLIs rely on `lib_cli_exit_tools` for deterministic e
 **Data Flow:**
 1. Console script (or `python -m lib_cli_exit_tools`) resolves to `lib_cli_exit_tools.cli.main`.  
 2. The Click group stores global flags and mutates `lib_cli_exit_tools.config`.  
-3. `run_cli` optionally installs signal handlers, executes the requested Click command, and funnels exceptions into `handle_cli_exception`.  
-4. `handle_cli_exception` maps signals and errors to exit codes using `default_signal_specs` and `get_system_exit_code`.  
-5. `print_exception_message` and `_print_output` (within `application.runner`) render diagnostics when tracebacks are suppressed.  
+3. `run_cli` optionally installs signal handlers, executes the requested Click command, and funnels exceptions into `handle_cli_exception`.
+4. `handle_cli_exception` maps signals and errors to exit codes using `default_signal_specs` and `get_system_exit_code`, printing either short summaries or Rich tracebacks depending on configuration.
+5. `print_exception_message` and `_print_output` (within `application.runner`) render diagnostics; in traceback mode the exception details are printed before the helper returns the exit status.
 6. Packaging metadata from `__init__conf__` feeds CLI help/version output so docs and runtime stay synchronized.
 
 **System Dependencies:** Standard library (`signal`, `subprocess`, `sys`, `importlib.metadata`) plus `click` and `rich-click` for CLI/TUI behavior.
@@ -72,6 +71,16 @@ Automations and downstream CLIs rely on `lib_cli_exit_tools` for deterministic e
 #### Constant: `config`
 * **Role:** Singleton instance consumed by adapters and orchestration code.
 * **Interactions:** Mutated by the CLI (`--traceback`) and inspected by error handlers and exit-code mappers.
+
+#### Function: `config_overrides(**overrides) -> ContextManager[_Config]`
+* **Purpose:** Provide a guardrail for temporary configuration tweaks by snapshotting values and restoring them on exit.
+* **Input:** Optional keyword overrides mapping to `_Config` fields.
+* **Output:** Yields the shared configuration so callers can inspect or mutate it during the context.
+* **Notes:** Raises `AttributeError` for unknown field names; safe to nest.
+
+#### Function: `reset_config() -> None`
+* **Purpose:** Restore the configuration singleton to the dataclass defaults after ad-hoc mutations.
+* **Side Effects:** Mutates `config` in place, reapplying the module defaults.
 
 ### Module: lib_cli_exit_tools/core/exit_codes.py
 * **Purpose:** Convert exceptions into deterministic OS exit statuses.
@@ -109,7 +118,7 @@ Automations and downstream CLIs rely on `lib_cli_exit_tools` for deterministic e
 
 #### Function: `handle_cli_exception(exc, *, signal_specs=None, echo=None) -> int`
 * **Role:** Map exceptions to exit codes, emit signal messages, honour `config.traceback`, and delegate to `get_system_exit_code` when needed.
-* **Notes:** Raises the original exception when traceback mode is enabled; otherwise trims output and prints captured subprocess streams.
+* **Notes:** In traceback mode the helper prints a Rich traceback and returns the computed exit status instead of re-raising; callers should inspect the returned code.
 
 #### Function: `run_cli(cli, argv=None, *, prog_name=None, signal_specs=None, install_signals=True, exception_handler=None, signal_installer=None) -> int`
 * **Role:** Install signal handlers (unless disabled), execute the passed Click command, and funnel exceptions through an injectable handler before flushing streams.
@@ -169,7 +178,7 @@ Automations and downstream CLIs rely on `lib_cli_exit_tools` for deterministic e
 **Dependencies:** Runtime requires `click` and `rich-click`. Rich traceback rendering uses `rich`. No optional extras beyond test dependencies.  
 **Key Configuration:**
 
-* `config.traceback` — toggled by CLI `--traceback`; affects whether exceptions re-raise or produce formatted output.  
+* `config.traceback` — toggled by CLI `--traceback`; switches between short summaries and Rich tracebacks while still returning an exit status.  
 * `config.exit_code_style` — defaults to `"errno"`; when set to `"sysexits"` exit codes map to BSD sysexits constants.  
 * `config.broken_pipe_exit_code` — defaults to `141` to align with POSIX pipeline conventions.
 

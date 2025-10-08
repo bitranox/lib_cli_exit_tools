@@ -28,47 +28,36 @@ CLICK_CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])  # noqa: C408
 
 
 def _configure_rich_click_output() -> None:
-    """Keep rich-click help rendering compatible with limited encodings.
-
-    Why:
-        GitHub Actions on Windows sets ``GITHUB_ACTIONS=true`` which causes
-        rich-click to force rich formatting even when stdout is a pipe. When the
-        pipe uses a legacy ``charmap`` codec, box-drawing characters in the rich
-        layout trigger ``UnicodeEncodeError`` and surface as an exit status of
-        ``87`` (``ERROR_INVALID_PARAMETER``). Disabling the forced terminal mode
-        and the decorative boxes keeps the help output ASCII-only so Windows
-        pipes can consume it reliably.
-    Side Effects:
-        Mutates global rich-click configuration before any commands run. The
-        tweak applies process-wide but only removes styling when stdout is not a
-        TTY or exposes a non-UTF encoding.
-    Examples:
-        >>> class _FakeStream:
-        ...     encoding = "cp1252"
-        ...     def isatty(self) -> bool:
-        ...         return False
-        >>> original = click.get_text_stream
-        >>> click.get_text_stream = lambda _: _FakeStream()
-        >>> try:
-        ...     rich_config.FORCE_TERMINAL = True
-        ...     _configure_rich_click_output()
-        ...     rich_config.FORCE_TERMINAL
-        ... finally:
-        ...     click.get_text_stream = original
-        False
-    """
+    """Keep rich-click help rendering compatible with limited encodings."""
 
     stream = click.get_text_stream("stdout")
-    encoding = (getattr(stream, "encoding", "") or "").lower()
-    is_tty = bool(getattr(stream, "isatty", lambda: False)())
-    supports_utf8 = "utf" in encoding
+    if _needs_plain_output(stream):
+        _prefer_ascii_layout()
 
-    if not is_tty or not supports_utf8:
-        rich_config.FORCE_TERMINAL = False
-        rich_config.COLOR_SYSTEM = None
-        rich_config.STYLE_OPTIONS_PANEL_BOX = None
-        rich_config.STYLE_COMMANDS_PANEL_BOX = None
-        rich_config.STYLE_ERRORS_PANEL_BOX = None
+
+def _needs_plain_output(stream: object) -> bool:
+    return (not _stream_is_tty(stream)) or (not _stream_supports_utf(stream))
+
+
+def _stream_is_tty(stream: object) -> bool:
+    checker = getattr(stream, "isatty", lambda: False)
+    try:
+        return bool(checker())
+    except Exception:  # pragma: no cover - defensive
+        return False
+
+
+def _stream_supports_utf(stream: object) -> bool:
+    encoding = (getattr(stream, "encoding", "") or "").lower()
+    return "utf" in encoding
+
+
+def _prefer_ascii_layout() -> None:
+    rich_config.FORCE_TERMINAL = False
+    rich_config.COLOR_SYSTEM = None
+    rich_config.STYLE_OPTIONS_PANEL_BOX = None
+    rich_config.STYLE_COMMANDS_PANEL_BOX = None
+    rich_config.STYLE_ERRORS_PANEL_BOX = None
 
 
 @click.group(help=__init__conf__.title, context_settings=CLICK_CONTEXT_SETTINGS)
@@ -102,9 +91,13 @@ def cli(ctx: click.Context, traceback: bool) -> None:
         >>> result.exit_code == 0
         True
     """
+    _remember_traceback_flag(ctx, traceback)
+    lib_cli_exit_tools.config.traceback = traceback
+
+
+def _remember_traceback_flag(ctx: click.Context, traceback: bool) -> None:
     ctx.ensure_object(dict)
     ctx.obj["traceback"] = traceback
-    lib_cli_exit_tools.config.traceback = traceback
 
 
 @cli.command("info", context_settings=CLICK_CONTEXT_SETTINGS)
@@ -175,6 +168,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     _configure_rich_click_output()
     return lib_cli_exit_tools.run_cli(
         cli,
-        argv=list(argv) if argv is not None else None,
+        argv=_normalised_arguments(argv),
         prog_name=__init__conf__.shell_command,
     )
+
+
+def _normalised_arguments(argv: Optional[Sequence[str]]) -> Optional[Sequence[str]]:
+    return list(argv) if argv is not None else None

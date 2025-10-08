@@ -29,7 +29,7 @@ The sections below cover more specialised workflows, from editable installs to p
 
 ## Supported Python Versions
 
-`lib_cli_exit_tools` targets Python 3.9 and newer. Wheels are published for CPython on Linux, macOS, and Windows. For alternative interpreters (PyPy) install from source using `pip install lib_cli_exit_tools`.
+`lib_cli_exit_tools` targets Python 3.13 and newer. Wheels are published for CPython on Linux, macOS, and Windows. For alternative interpreters (PyPy) install from source using `pip install lib_cli_exit_tools`.
 
 ## Installation Flows
 
@@ -40,7 +40,7 @@ The quickest path for production use:
 ```bash
 pip install lib_cli_exit_tools
 # Pin to a specific release when reproducibility matters
-pip install "lib_cli_exit_tools==1.1.0"
+pip install "lib_cli_exit_tools==X.Y.Z"
 # Upgrade later
 pip install --upgrade lib_cli_exit_tools
 ```
@@ -77,7 +77,7 @@ Ensure `~/.local/bin` (POSIX) or `%APPDATA%\Python\PythonXY\Scripts` (Windows) i
 pipx install lib_cli_exit_tools
 pipx upgrade lib_cli_exit_tools
 # Install directly from a tagged release or commit
-pipx install "git+https://github.com/bitranox/lib_cli_exit_tools@v1.1.0"
+pipx install "git+https://github.com/bitranox/lib_cli_exit_tools@vX.Y.Z"
 ```
 
 ### uv
@@ -119,7 +119,7 @@ pdm install
 CI systems or early adopters can install from a specific revision:
 
 ```bash
-pip install "git+https://github.com/bitranox/lib_cli_exit_tools@v1.1.0#egg=lib_cli_exit_tools"
+pip install "git+https://github.com/bitranox/lib_cli_exit_tools@vX.Y.Z#egg=lib_cli_exit_tools"
 ```
 
 ### Conda / Mamba environments
@@ -127,7 +127,7 @@ pip install "git+https://github.com/bitranox/lib_cli_exit_tools@v1.1.0#egg=lib_c
 Create a dedicated Conda environment and install via `pip` inside it:
 
 ```bash
-mamba create -n cli-exit python=3.12 pip
+mamba create -n cli-exit python=3.13 pip
 mamba activate cli-exit
 pip install lib_cli_exit_tools
 ```

@@ -13,7 +13,7 @@ source:
 source:
   # For released tags; replace sha256 before submitting to conda-forge
   url: https://github.com/bitranox/{{ name }}/archive/refs/tags/v{{ version }}.tar.gz
-  k3cc316e7d0b09dd79e617cb3e91b14ee414b7e6695b108a326d9d3ccd08dd9"
+  sha256: 7546f92ac8efbd214c1d55ff75881616636cab151f373b13f4efc1e33975c1d5
 {% endif %}
 
 build:

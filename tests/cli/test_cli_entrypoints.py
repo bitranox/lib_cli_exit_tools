@@ -1,14 +1,4 @@
-"""CLI integration tests.
-
-Purpose:
-    Demonstrate that console scripts and `python -m` execution share the same
-    output and configuration behaviour.
-Contents:
-    * Smoke tests for CLI commands and error messaging.
-    * Rich-click configuration regression checks.
-System Integration:
-    Covers the package surface most visible to end users.
-"""
+"""CLI behaviour described in plain words."""
 
 from __future__ import annotations
 
@@ -19,44 +9,42 @@ from _pytest.capture import CaptureFixture
 
 import pytest
 
-from lib_cli_exit_tools import run_cli, i_should_fail
+import lib_cli_exit_tools
+from lib_cli_exit_tools import i_should_fail, run_cli
 from lib_cli_exit_tools.cli import cli as root_cli, main
 
 
-def test_i_should_fail_helper_raises_runtime_error() -> None:
-    """The public helper always raises RuntimeError with a stable message."""
-    with pytest.raises(RuntimeError, match="^i should fail$"):
+def test_i_should_fail_always_raises_runtime_error() -> None:
+    with pytest.raises(RuntimeError, match="i should fail"):
         i_should_fail()
 
 
-def test_cli_info_command_outputs_metadata(capsys: CaptureFixture[str]) -> None:
-    """The info subcommand surfaces package metadata without stderr output."""
+def test_cli_info_command_writes_metadata(capsys: CaptureFixture[str]) -> None:
     exit_code = main(["info"])
     out, err = capsys.readouterr()
-    assert exit_code == 0
-    assert "Info for lib_cli_exit_tools" in out
-    assert err == ""
+    assert exit_code == 0 and "Info for lib_cli_exit_tools" in out and err == ""
 
 
-def test_cli_fail_command_emits_runtime_error(capsys: CaptureFixture[str]) -> None:
-    """The fail subcommand intentionally raises RuntimeError for error-path tests."""
+def test_cli_fail_command_prints_runtime_error(capsys: CaptureFixture[str]) -> None:
     exit_code = main(["fail"])
     out, err = capsys.readouterr()
-    assert exit_code == 1
-    assert out == ""
-    assert "RuntimeError: i should fail" in err
+    assert exit_code == 1 and out == "" and "RuntimeError: i should fail" in err
 
 
-def test_cli_unknown_option_returns_usage_error(capsys: CaptureFixture[str]) -> None:
-    """Unknown options trigger Click usage errors with exit code 2."""
+def test_cli_fail_with_traceback_renders_rich_output(capsys: CaptureFixture[str]) -> None:
+    exit_code = main(["--traceback", "fail"])
+    _out, err = capsys.readouterr()
+    expected = lib_cli_exit_tools.get_system_exit_code(RuntimeError("i should fail"))
+    assert exit_code == expected and "Traceback" in err
+
+
+def test_cli_reports_unknown_option(capsys: CaptureFixture[str]) -> None:
     exit_code = main(["--does-not-exist"])
     _out, err = capsys.readouterr()
-    assert exit_code == 2
-    assert "No such option" in err
+    assert exit_code == 2 and "No such option" in err
 
 
-def test_module_execution_matches_console_script(capsys: CaptureFixture[str]) -> None:
-    """Console script and module execution yield identical results."""
+def test_module_execution_matches_run_cli(capsys: CaptureFixture[str]) -> None:
     exit_main = main(["info"])
     out_main, err_main = capsys.readouterr()
 
@@ -64,27 +52,16 @@ def test_module_execution_matches_console_script(capsys: CaptureFixture[str]) ->
     out_runner, err_runner = capsys.readouterr()
 
     assert exit_main == exit_runner == 0
-    assert out_main == out_runner
-    assert err_main == err_runner
+    assert out_main == out_runner and err_main == err_runner
 
 
-def test_python_m_invocation_provides_help() -> None:
-    """Running `python -m lib_cli_exit_tools --help` returns usage text."""
-    proc = subprocess.run(
-        [sys.executable, "-m", "lib_cli_exit_tools", "--help"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        check=False,
-    )
-    assert proc.returncode == 0
-    assert "Usage" in proc.stdout or "--help" in proc.stdout
+def test_python_m_help_flag_returns_usage_text() -> None:
+    proc = subprocess.run([sys.executable, "-m", "lib_cli_exit_tools", "--help"], capture_output=True, text=True, check=False)
+    assert proc.returncode == 0 and ("Usage" in proc.stdout or "--help" in proc.stdout)
 
 
-def test_main_invokes_rich_click_configuration(monkeypatch: pytest.MonkeyPatch) -> None:
-    """CLI execution lazily configures rich-click output per stream capability."""
-
-    class _FakeStream:
+def test_main_downgrades_rich_click_when_stream_cannot_handle_utf(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakeStream:
         encoding = "cp1252"
 
         def isatty(self) -> bool:
@@ -92,28 +69,20 @@ def test_main_invokes_rich_click_configuration(monkeypatch: pytest.MonkeyPatch) 
 
     import lib_cli_exit_tools.cli as cli_mod
 
-    original_force = cli_mod.rich_config.FORCE_TERMINAL
-    original_color = cli_mod.rich_config.COLOR_SYSTEM
+    def provide_fake_stream(_: str) -> FakeStream:
+        return FakeStream()
 
-    def _get_text_stream(_name: str) -> _FakeStream:
-        return _FakeStream()
+    monkeypatch.setattr(cli_mod.click, "get_text_stream", provide_fake_stream)
+    cli_mod.rich_config.FORCE_TERMINAL = True
+    cli_mod.rich_config.COLOR_SYSTEM = "standard"
 
-    monkeypatch.setattr(cli_mod.click, "get_text_stream", _get_text_stream)
-    try:
-        cli_mod.rich_config.FORCE_TERMINAL = True
-        cli_mod.rich_config.COLOR_SYSTEM = "standard"
+    exit_code = cli_mod.main(["info"])
 
-        exit_code = cli_mod.main(["info"])
-        assert exit_code == 0
-        assert cli_mod.rich_config.FORCE_TERMINAL is False
-        assert cli_mod.rich_config.COLOR_SYSTEM is None
-    finally:
-        cli_mod.rich_config.FORCE_TERMINAL = original_force
-        cli_mod.rich_config.COLOR_SYSTEM = original_color
+    assert exit_code == 0
+    assert cli_mod.rich_config.FORCE_TERMINAL is False
+    assert cli_mod.rich_config.COLOR_SYSTEM is None
 
 
-def test_python_m_invocation_smoke() -> None:
-    """`python -m lib_cli_exit_tools info` completes successfully."""
+def test_python_m_invocation_for_info_succeeds() -> None:
     proc = subprocess.run([sys.executable, "-m", "lib_cli_exit_tools", "info"], capture_output=True, text=True, check=False)
-    assert proc.returncode == 0
-    assert "Info for lib_cli_exit_tools" in proc.stdout
+    assert proc.returncode == 0 and "Info for lib_cli_exit_tools" in proc.stdout

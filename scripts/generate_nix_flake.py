@@ -5,7 +5,9 @@ import sys
 import textwrap
 from pathlib import Path
 from string import Template
-from typing import TypedDict
+from typing import Any, TypedDict, cast
+
+import tomllib
 
 try:
     from scripts._utils import read_version_from_pyproject
@@ -64,11 +66,28 @@ def _ordered_unique(values: list[str]) -> list[str]:
     return result
 
 
+def _project_description(pyproject: Path) -> str:
+    try:
+        data: dict[str, Any] = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+        project = data.get("project")
+        if isinstance(project, dict):
+            project_dict = cast(dict[str, Any], project)
+            description = project_dict.get("description")
+            if isinstance(description, str) and description.strip():
+                return description.strip()
+    except Exception:
+        pass
+    return "CLI exit handling helpers: clean signals, exit codes, and error printing"
+
+
 def generate_flake(version: str) -> str:
-    deps = read_pyproject_deps(Path("pyproject.toml"))
+    pyproject = Path("pyproject.toml")
+    deps = read_pyproject_deps(pyproject)
     req = read_requires_python(Path("pyproject.toml"))
     min_py = min_py_from_requires(req or "") if req else None
     python_digits = (min_py or "3.13").replace(".", "")
+    project_description = _project_description(pyproject)
+    project_homepage = PROJECT_META.homepage or PROJECT_META.repo_url or ""
 
     vendor_infos: list[VendorInfo] = []
     seen_idents: set[str] = set()
@@ -103,7 +122,7 @@ def generate_flake(version: str) -> str:
   format = "wheel";
   src = pkgs.fetchurl {{
     url = "{url}";
-    sha256 = "{hash}";
+    hash = "{hash}";
   }};
   doCheck = false;
 }};
@@ -123,7 +142,7 @@ def generate_flake(version: str) -> str:
     template = Template(
         textwrap.dedent(
             """{
-  description = "bitranox_template_py_cli Nix flake";
+  description = "${flake_description}";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.05";
   inputs.flake-utils.url = "github:numtide/flake-utils";
@@ -165,8 +184,8 @@ ${vendor_blocks}
           propagatedBuildInputs = [ ${prop_inputs} ];
 
           meta = with pkgs.lib; {
-            description = "Rich-powered logging runtime with contextual metadata and multi-sink fan-out";
-            homepage = "https://github.com/bitranox/bitranox_template_py_cli";
+            description = "${meta_description}";
+            homepage = "${meta_homepage}";
             license = licenses.mit;
             maintainers = [];
             platforms = platforms.unix ++ platforms.darwin;
@@ -192,6 +211,9 @@ ${devshell_inputs}
         version=version,
         prop_inputs=prop_inputs,
         devshell_inputs=devshell_inputs,
+        flake_description=project_description,
+        meta_description=project_description,
+        meta_homepage=project_homepage,
     )
 
 

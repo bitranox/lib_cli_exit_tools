@@ -36,6 +36,7 @@ __all__ = ["run_tests", "COVERAGE_TARGET"]
 _toml_module: ModuleType | None = None
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 _TRUTHY = {"1", "true", "yes", "on"}
+_PIP_AUDIT_IGNORE_VULNS = ("GHSA-4xh5-x5gv-qwph",)
 
 
 def _build_default_env() -> dict[str, str]:
@@ -97,13 +98,56 @@ def run_tests(
 
     bootstrap_dev()
 
-    resolved_skip_packaging = skip_packaging_sync if skip_packaging_sync is not None else os.getenv("SKIP_PACKAGING_SYNC", "1").strip().lower() in _TRUTHY
+    resolved_skip_packaging = skip_packaging_sync if skip_packaging_sync is not None else os.getenv("SKIP_PACKAGING_SYNC", "0").strip().lower() in _TRUTHY
+    resolved_security_skip = os.getenv("SKIP_SECURITY_SCANS", "0").strip().lower() in _TRUTHY
 
     steps: list[tuple[str, Callable[[], None]]] = []
+
+    def _sync_packaging() -> None:
+        try:
+            pre_status = subprocess.run(
+                ["git", "status", "--porcelain", "packaging"],
+                cwd=PROJECT_ROOT,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+        except Exception as exc:  # pragma: no cover - git unavailable
+            raise SystemExit(f"Packaging sync verification failed: {exc}") from exc
+
+        if pre_status.returncode != 0:
+            raise SystemExit("git status failed while inspecting packaging drift")
+
+        pre_output = pre_status.stdout.splitlines()
+
+        sync_packaging()
+
+        try:
+            post_status = subprocess.run(
+                ["git", "status", "--porcelain", "packaging"],
+                cwd=PROJECT_ROOT,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+        except Exception as exc:  # pragma: no cover - git unavailable
+            raise SystemExit(f"Packaging sync verification failed: {exc}") from exc
+
+        if post_status.returncode != 0:
+            raise SystemExit("git status failed while verifying packaging sync changes")
+
+        post_output = post_status.stdout.splitlines()
+
+        if pre_output != post_output:
+            diff = "\n".join(post_output)
+            if diff:
+                click.echo(diff, err=True)
+            raise SystemExit("Packaging files drifted from pyproject.toml. Run scripts/bump_version.py --sync-packaging and commit the updates.")
+
     if resolved_skip_packaging:
-        click.echo("[skip] Packaging sync disabled (set SKIP_PACKAGING_SYNC=0 to enable)")
+        click.echo("[skip] Packaging sync disabled (set SKIP_PACKAGING_SYNC=1 to opt out)")
     else:
-        steps.append(("Sync packaging (conda/brew/nix) with pyproject", lambda: sync_packaging()))
+        steps.append(("Sync packaging (conda/brew/nix) with pyproject", _sync_packaging))
 
     resolved_format_strict = strict_format if strict_format is not None else os.getenv("STRICT_RUFF_FORMAT", "0").strip().lower() in _TRUTHY
 
@@ -135,6 +179,29 @@ def run_tests(
             ),
         ]
     )
+
+    if resolved_security_skip:
+        click.echo("[skip] Security scans disabled (set SKIP_SECURITY_SCANS=1 to opt out)")
+    else:
+        steps.extend(
+            [
+                (
+                    "Bandit security scan",
+                    _wrap(cmd=["bandit", "-q", "-r", "src/lib_cli_exit_tools"], label="bandit", capture=False),
+                ),
+                (
+                    "pip-audit dependency scan",
+                    _wrap(
+                        cmd=(
+                            ["pip-audit", "--progress-spinner", "off", "--skip-editable"]
+                            + [flag for vuln in _PIP_AUDIT_IGNORE_VULNS for flag in ("--ignore-vuln", vuln)]
+                        ),
+                        label="pip-audit",
+                        capture=False,
+                    ),
+                ),
+            ]
+        )
 
     def _run_pytest() -> None:
         for f in (".coverage", "coverage.xml"):

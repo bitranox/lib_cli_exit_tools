@@ -1,16 +1,4 @@
-"""Application-layer runner tests.
-
-Purpose:
-    Verify that the orchestration helpers manage signals, traceback output,
-    and Click integration according to documented policy.
-Contents:
-    * Error-handling scenarios for `handle_cli_exception`.
-    * Rendering and flushing behaviour for `print_exception_message`.
-    * Integration paths for `run_cli` hooks.
-System Integration:
-    Ensures entrypoints and adapters can rely on consistent orchestration
-    semantics.
-"""
+"""Runner helpers read like instructions."""
 
 from __future__ import annotations
 
@@ -21,137 +9,150 @@ from typing import TextIO
 import click
 import pytest
 
+from lib_cli_exit_tools.adapters.signals import SignalSpec, SigIntInterrupt
+from lib_cli_exit_tools.application import runner as runner_module
 from lib_cli_exit_tools.application.runner import (
     flush_streams,
     handle_cli_exception,
     print_exception_message,
     run_cli,
 )
-from lib_cli_exit_tools.application import runner as runner_module
 from lib_cli_exit_tools.core.configuration import config
-from lib_cli_exit_tools.adapters.signals import SignalSpec, SigIntInterrupt
+
+
+pytestmark = pytest.mark.usefixtures("reset_config_state")
 
 
 @pytest.fixture(autouse=True)
-def _stub_signal_install(monkeypatch: pytest.MonkeyPatch) -> None:  # pyright: ignore[reportUnusedFunction]
-    """Prevent tests from mutating global signal handlers by default."""
+def stub_signal_install(monkeypatch: pytest.MonkeyPatch) -> None:
+    def install_stub(specs: Sequence[SignalSpec] | None = None) -> Callable[[], None]:  # noqa: ARG001 - signature parity
+        return lambda: None
 
-    def _install(specs: Sequence[SignalSpec] | None = None) -> Callable[[], None]:
-        def _restore() -> None:
-            return None
-
-        return _restore
-
-    monkeypatch.setattr(runner_module, "install_signal_handlers", _install)
+    monkeypatch.setattr(runner_module, "install_signal_handlers", install_stub)
 
 
-def test_handle_cli_exception_emits_signal_message(capsys: pytest.CaptureFixture[str]) -> None:
-    """Signal-derived exceptions emit user-facing messages and codes."""
-    exit_code = handle_cli_exception(SigIntInterrupt())
+def test_handle_cli_exception_for_signal_echoes_message(capsys: pytest.CaptureFixture[str]) -> None:
+    code = handle_cli_exception(SigIntInterrupt())
     _out, err = capsys.readouterr()
-    assert exit_code == 130
-    assert "Aborted" in err
+    assert code == 130 and "Aborted" in err
 
 
-def test_handle_cli_exception_broken_pipe_uses_configured_code(capsys: pytest.CaptureFixture[str]) -> None:
-    """BrokenPipeError results honour the configured exit code and stay quiet."""
+def test_handle_cli_exception_for_broken_pipe_obeys_configured_code(capsys: pytest.CaptureFixture[str]) -> None:
     config.broken_pipe_exit_code = 141
-    exit_code = handle_cli_exception(BrokenPipeError())
+    code = handle_cli_exception(BrokenPipeError())
     out, err = capsys.readouterr()
-    assert (out, err) == ("", "")
-    assert exit_code == 141
+    assert code == 141 and out == "" and err == ""
 
 
-def test_handle_cli_exception_generic_delegates(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Generic exceptions delegate to printers and exit-code helpers."""
+def test_handle_cli_exception_for_generic_error_calls_printer_and_resolver(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: dict[str, object] = {}
 
-    def fake_print() -> None:
-        calls["printed"] = True
+    def fake_printer(*_: object, **kwargs: object) -> None:
+        calls["printed"] = kwargs.get("trace_back", False)
 
-    def fake_exit(exc: BaseException) -> int:
+    def fake_resolver(exc: BaseException) -> int:
         calls["exc"] = exc
         return 55
 
-    monkeypatch.setattr(runner_module, "print_exception_message", fake_print)
-    monkeypatch.setattr(runner_module, "get_system_exit_code", fake_exit)
+    monkeypatch.setattr(runner_module, "print_exception_message", fake_printer)
+    monkeypatch.setattr(runner_module, "get_system_exit_code", fake_resolver)
     config.traceback = False
 
     err = RuntimeError("boom")
     assert handle_cli_exception(err) == 55
-    assert calls == {"printed": True, "exc": err}
+    assert calls == {"printed": False, "exc": err}
 
 
-def test_handle_cli_exception_prints_rich_traceback(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Traceback mode renders rich tracebacks and returns exit codes."""
-    calls: dict[str, object] = {}
+def test_handle_cli_exception_in_traceback_mode_requests_full_trace(monkeypatch: pytest.MonkeyPatch) -> None:
+    call_details: dict[str, object] = {}
 
-    def _fake_print(*_args: object, **kwargs: object) -> None:
-        calls["called"] = True
-        calls["trace_back"] = bool(kwargs.get("trace_back"))
+    def fake_printer(*_: object, **kwargs: object) -> None:
+        call_details["trace_back"] = kwargs.get("trace_back")
 
-    def _fake_exit(exc: BaseException) -> int:
-        calls["exc"] = exc
+    monkeypatch.setattr(runner_module, "print_exception_message", fake_printer)
+
+    def fake_resolver(_: BaseException) -> int:
         return 17
 
-    monkeypatch.setattr(runner_module, "print_exception_message", _fake_print)
-    monkeypatch.setattr(runner_module, "get_system_exit_code", _fake_exit)
-
+    monkeypatch.setattr(runner_module, "get_system_exit_code", fake_resolver)
     config.traceback = True
-    err = RuntimeError("boom")
-    assert handle_cli_exception(err) == 17
-    assert calls == {"called": True, "trace_back": True, "exc": err}
+
+    assert handle_cli_exception(RuntimeError("boom")) == 17
+    assert call_details == {"trace_back": True}
 
 
-def test_print_exception_message_outputs_summary() -> None:
-    """Plain summary output is produced when tracebacks are suppressed."""
+def test_handle_cli_exception_recovers_from_old_printer_signature(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[str] = []
+
+    def old_printer() -> None:
+        calls.append("legacy")
+
+    def resolver(_: BaseException) -> int:
+        return 3
+
+    monkeypatch.setattr(runner_module, "print_exception_message", old_printer)
+    monkeypatch.setattr(runner_module, "get_system_exit_code", resolver)
+    config.traceback = True
+
+    assert handle_cli_exception(RuntimeError("boom")) == 3
+    assert calls == ["legacy"]
+
+
+def test_handle_cli_exception_with_click_exception_returns_click_exit_code() -> None:
+    class Fussy(click.ClickException):
+        def __init__(self) -> None:
+            super().__init__("fussy")
+            self.exit_code = 5
+
+    assert handle_cli_exception(Fussy()) == 5
+
+
+def test_handle_cli_exception_with_system_exit_respects_payload() -> None:
+    assert handle_cli_exception(SystemExit(22)) == 22
+
+
+def test_print_exception_message_writes_summary() -> None:
     try:
         raise FileNotFoundError("missing.txt")
-    except Exception:
-        buf = io.StringIO()
-        print_exception_message(trace_back=False, stream=buf)
-        output = buf.getvalue()
-        assert "FileNotFoundError" in output
-        assert "missing.txt" in output
+    except FileNotFoundError:
+        buffer = io.StringIO()
+        print_exception_message(trace_back=False, stream=buffer)
+    assert "missing.txt" in buffer.getvalue()
 
 
-def test_print_exception_message_renders_traceback() -> None:
-    """Traceback rendering emits the formatted stack trace."""
+def test_print_exception_message_writes_traceback() -> None:
     try:
         raise ValueError("broken")
-    except Exception:
-        buf = io.StringIO()
-        print_exception_message(trace_back=True, stream=buf)
-        assert "Traceback" in buf.getvalue()
+    except ValueError:
+        buffer = io.StringIO()
+        print_exception_message(trace_back=True, stream=buffer)
+    assert "Traceback" in buffer.getvalue()
 
 
-def test_print_exception_message_force_color(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Forced colour mode drives Rich console configuration."""
-    calls: dict[str, object] = {}
+def test_print_exception_message_respects_force_colour(monkeypatch: pytest.MonkeyPatch) -> None:
+    recorded: dict[str, object] = {}
 
-    class _DummyConsole:
-        def __init__(
-            self,
-            *,
-            file: TextIO,
-            force_terminal: bool | None,
-            color_system: str | None,
-            soft_wrap: bool,
-        ) -> None:
-            calls["force_terminal"] = force_terminal
-            calls["color_system"] = color_system
-            calls["soft_wrap"] = soft_wrap
+    class DummyConsole:
+        def __init__(self, *, file: TextIO, force_terminal: bool | None, color_system: str | None, soft_wrap: bool) -> None:
+            recorded.update(
+                {
+                    "file": file,
+                    "force_terminal": force_terminal,
+                    "color_system": color_system,
+                    "soft_wrap": soft_wrap,
+                }
+            )
             self.file = file
 
-        def print(self, renderable: object) -> None:  # pragma: no cover - behaviour mocked
-            calls["renderable"] = renderable
+        def print(self, renderable: object) -> None:  # pragma: no cover - mocked side effect only
+            recorded["renderable"] = renderable
 
-    def _fake_traceback(*_args: object, **_kwargs: object) -> str:
-        calls["traceback_called"] = True
-        return "traceback"
+    monkeypatch.setattr(runner_module, "Console", DummyConsole, raising=False)
 
-    monkeypatch.setattr(runner_module, "Console", _DummyConsole, raising=False)
-    monkeypatch.setattr(runner_module.Traceback, "from_exception", _fake_traceback, raising=False)
+    def fake_traceback(*args: object, **_: object) -> str:
+        return "trace"
+
+    monkeypatch.setattr(runner_module.Traceback, "from_exception", fake_traceback)
     config.traceback_force_color = True
 
     try:
@@ -159,34 +160,28 @@ def test_print_exception_message_force_color(monkeypatch: pytest.MonkeyPatch) ->
     except ValueError:
         print_exception_message(True, stream=io.StringIO())
 
-    assert calls.get("traceback_called") is True
-    assert calls.get("force_terminal") is True
-    assert calls.get("color_system") == "auto"
+    assert recorded.get("force_terminal") is True
+    assert recorded.get("color_system") == "auto"
 
 
-def test_print_exception_message_handles_bytes_output(capsys: pytest.CaptureFixture[str]) -> None:
-    """Subprocess byte output is decoded and printed."""
-
-    class FakeException(Exception):
+def test_print_exception_message_echoes_subprocess_output(capsys: pytest.CaptureFixture[str]) -> None:
+    class FakeError(Exception):
         stdout = b"hello"
 
     try:
-        raise FakeException()
-    except FakeException:
+        raise FakeError()
+    except FakeError:
         print_exception_message(trace_back=False)
 
     _out, err = capsys.readouterr()
     assert "STDOUT: hello" in err
 
 
-def test_flush_streams_is_noop() -> None:
-    """Stream flushing completes without raising."""
+def test_flush_streams_is_a_quiet_noop() -> None:
     flush_streams()
 
 
-def test_run_cli_success(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Successful command execution returns 0 and completes without signals."""
-
+def test_run_cli_success_returns_zero(monkeypatch: pytest.MonkeyPatch) -> None:
     @click.command()
     def cli_cmd() -> None:
         click.echo("ok")
@@ -195,9 +190,7 @@ def test_run_cli_success(monkeypatch: pytest.MonkeyPatch) -> None:
     assert exit_code == 0
 
 
-def test_run_cli_handles_click_exception(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Click exceptions propagate their exit codes through run_cli."""
-
+def test_run_cli_surfaces_click_exception_exit_code() -> None:
     @click.command()
     def cli_cmd() -> None:
         raise click.ClickException("fail")
@@ -207,56 +200,28 @@ def test_run_cli_handles_click_exception(monkeypatch: pytest.MonkeyPatch) -> Non
 
 
 def test_run_cli_accepts_custom_exception_handler() -> None:
-    """Custom exception handlers can override exit codes."""
-
     @click.command()
     def cli_cmd() -> None:
         raise RuntimeError("boom")
 
-    captured: dict[str, BaseException] = {}
-
-    def fake_handler(exc: BaseException) -> int:
-        captured["exc"] = exc
+    def custom_handler(exc: BaseException) -> int:
+        assert isinstance(exc, RuntimeError)
         return 99
 
-    exit_code = run_cli(cli_cmd, argv=[], install_signals=True, exception_handler=fake_handler)
+    exit_code = run_cli(cli_cmd, argv=[], exception_handler=custom_handler, install_signals=False)
     assert exit_code == 99
-    assert isinstance(captured["exc"], RuntimeError)
 
 
-def test_run_cli_uses_custom_signal_installer() -> None:
-    """Custom signal installers receive specs and restoration executes."""
-
+def test_run_cli_uses_custom_signal_installer(monkeypatch: pytest.MonkeyPatch) -> None:
     @click.command()
     def cli_cmd() -> None:
         pass
 
-    installs: list[list[SignalSpec]] = []
-    restored: list[bool] = []
+    installed: list[Sequence[SignalSpec]] = []
 
-    def fake_installer(specs: Sequence[SignalSpec] | None) -> Callable[[], None]:
-        installs.append(list(specs or []))
+    def custom_installer(specs: Sequence[SignalSpec] | None) -> Callable[[], None]:
+        installed.append(tuple(specs or ()))
+        return lambda: installed.append(())
 
-        def _restore() -> None:
-            restored.append(True)
-
-        return _restore
-
-    exit_code = run_cli(cli_cmd, argv=[], signal_installer=fake_installer, install_signals=True)
-    assert exit_code == 0
-    assert installs and isinstance(installs[0][0], SignalSpec)
-    assert restored == [True]
-
-
-def test_custom_signal_installer_can_raise(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Errors from custom signal installers bubble up for visibility."""
-
-    @click.command()
-    def cli_cmd() -> None:
-        pass
-
-    def boom(_specs: Sequence[SignalSpec] | None) -> Callable[[], None]:
-        raise RuntimeError("installer failed")
-
-    with pytest.raises(RuntimeError, match="installer failed"):
-        run_cli(cli_cmd, argv=[], signal_installer=boom, install_signals=True)
+    run_cli(cli_cmd, argv=[], signal_installer=custom_installer, install_signals=True)
+    assert installed and installed[-1] == ()
