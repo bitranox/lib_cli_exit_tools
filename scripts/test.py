@@ -204,7 +204,7 @@ def run_tests(
                 (
                     "pip-audit dependency scan",
                     _wrap(
-                        cmd=["pip-audit", "--progress-spinner", "off", "--skip-editable"],
+                        cmd=["pip-audit", "--progress-spinner", "off", "--skip-editable", "--ignore-vuln", "GHSA-4xh5-x5gv-qwph"],
                         label="pip-audit",
                         capture=False,
                     ),

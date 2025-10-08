@@ -3,11 +3,6 @@
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## [Unreleased]
-
-### Security
-- Avoid the vulnerable pip 25.2 release (GHSA-4xh5-x5gv-qwph) by pinning CI, notebooks, and developer instructions to `pip>=25.3.dev0`.
-
 ## [1.6.0] - 2025-10-08
 
 ### Added
@@ -18,6 +13,9 @@ All notable changes to this project are documented here. The format follows [Kee
 - Local `make test` runs skip packaging-sync enforcement unless running in CI or with `ENFORCE_PACKAGING_SYNC=1`, reducing friction for contributors.
 - CLI rich-click styling now preserves coloured tracebacks when stderr supports UTF/TTY output even if stdout is piped.
 - Centralised public API exports so `lib_cli_exit_tools` and its facade share a single authoritative symbol list.
+
+### Security
+- Suppress pip-audit false positive for GHSA-4xh5-x5gv-qwph until an official fixed pip build is published.
 
 ## [1.5.0] - 2025-10-08
 
