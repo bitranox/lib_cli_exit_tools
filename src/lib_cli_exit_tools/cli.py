@@ -24,15 +24,18 @@ from rich_click import rich_click as rich_config
 from . import __init__conf__
 from . import lib_cli_exit_tools
 
-#: Consistent help flag aliases reused across all lib-cli-exit-tools commands.
+#: Help flag aliases applied to every Click command so documentation and CLI
+#: behaviour stay consistent (`-h` mirrors `--help`).
 CLICK_CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])  # noqa: C408
 
 
 def _needs_plain_output(stream: object) -> bool:
+    """Return ``True`` when ``stream`` cannot safely render Rich styling."""
     return (not _stream_is_tty(stream)) or (not _stream_supports_utf(stream))
 
 
 def _stream_is_tty(stream: object) -> bool:
+    """Return ``True`` when ``stream`` reports itself as a TTY."""
     checker = getattr(stream, "isatty", lambda: False)
     try:
         return bool(checker())
@@ -41,11 +44,13 @@ def _stream_is_tty(stream: object) -> bool:
 
 
 def _stream_supports_utf(stream: object) -> bool:
+    """Return ``True`` when ``stream`` advertises a UTF-capable encoding."""
     encoding = (getattr(stream, "encoding", "") or "").lower()
     return "utf" in encoding
 
 
 def _prefer_ascii_layout() -> None:
+    """Downgrade rich-click global styling to ASCII-friendly defaults."""
     rich_config.FORCE_TERMINAL = False
     rich_config.COLOR_SYSTEM = None
     rich_config.STYLE_OPTIONS_PANEL_BOX = None
@@ -202,4 +207,5 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
 
 def _normalised_arguments(argv: Optional[Sequence[str]]) -> Optional[Sequence[str]]:
+    """Convert optional sequences to mutable lists for Click consumption."""
     return list(argv) if argv is not None else None

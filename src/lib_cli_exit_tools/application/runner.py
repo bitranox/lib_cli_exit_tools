@@ -80,13 +80,30 @@ def _default_echo(message: str, *, err: bool = True) -> None:
 
 
 def flush_streams() -> None:
-    """Best-effort flush of ``stdout`` and ``stderr`` to avoid buffered loss."""
+    """Flush standard streams so diagnostics do not linger in buffers.
+
+    Why:
+        Rich tracebacks and click output use buffering; flushing ensures users
+        see diagnostics even when the process exits immediately afterward.
+    Returns:
+        ``None``.
+    Side Effects:
+        Calls ``flush`` on ``sys.stdout`` and ``sys.stderr`` when available.
+    """
 
     for stream in _streams_to_flush():
         _flush_stream(stream)
 
 
 def _streams_to_flush() -> Iterable[object]:
+    """Yield stream objects that should be flushed before exiting.
+
+    Why:
+        Factoring iteration into a helper simplifies testing and keeps the
+        flush logic symmetric for stdout and stderr.
+    Returns:
+        Generator producing available stream objects.
+    """
     for stream_name in ("stdout", "stderr"):
         stream = getattr(sys, stream_name, None)
         if stream is not None:
@@ -94,6 +111,13 @@ def _streams_to_flush() -> Iterable[object]:
 
 
 def _flush_stream(stream: object) -> None:
+    """Flush ``stream`` if it exposes a callable ``flush`` attribute.
+
+    Parameters:
+        stream: Object potentially offering a ``flush`` method.
+    Returns:
+        ``None``; silently ignores errors because flushing is best-effort.
+    """
     flush = getattr(stream, "flush", None)
     if callable(flush):  # pragma: no branch - simple guard
         with suppress(Exception):  # pragma: no cover - best effort
@@ -133,7 +157,18 @@ def _build_console(
 
 
 def _print_output(exc_info: object, attr: str, stream: Optional[TextIO] = None) -> None:
-    """Print captured subprocess output stored on an exception."""
+    """Print captured subprocess output stored on ``exc_info``.
+
+    Why:
+        ``click`` surfaces subprocess errors by attaching ``stdout``/``stderr``
+        to exceptions; mirroring that output aids debugging.
+    Parameters:
+        exc_info: Exception object potentially carrying the output attribute.
+        attr: Attribute name to inspect (``"stdout"`` or ``"stderr"``).
+        stream: Destination stream; defaults to ``sys.stderr`` when ``None``.
+    Returns:
+        ``None``.
+    """
 
     target = stream or sys.stderr
     if not hasattr(exc_info, attr):
@@ -145,6 +180,13 @@ def _print_output(exc_info: object, attr: str, stream: Optional[TextIO] = None) 
 
 
 def _decode_output(output: object) -> Optional[str]:
+    """Convert subprocess output into text, tolerating bytes and ``None``.
+
+    Parameters:
+        output: Raw value stored on an exception object.
+    Returns:
+        Decoded string when possible; ``None`` when the value is unusable.
+    """
     if output is None:
         return None
     if isinstance(output, bytes):
@@ -201,26 +243,31 @@ def print_exception_message(
 
 
 def _active_exception() -> BaseException | None:
+    """Return the currently active exception from ``sys.exc_info``."""
     return sys.exc_info()[1]
 
 
 def _emit_subprocess_output(exc_info: BaseException, stream: TextIO) -> None:
+    """Write any subprocess ``stdout``/``stderr`` captured on ``exc_info``."""
     for attr in ("stdout", "stderr"):
         _print_output(exc_info, attr, stream)
 
 
 def _console_for_tracebacks(stream: TextIO) -> Console:
+    """Build a :class:`Console` configured for traceback rendering."""
     force_terminal, color_system = _traceback_colour_preferences()
     return _build_console(stream, force_terminal=force_terminal, color_system=color_system)
 
 
 def _traceback_colour_preferences() -> tuple[bool | None, RichColorSystem | None]:
+    """Determine whether tracebacks should force colour output."""
     if config.traceback_force_color:
         return True, "auto"
     return None, None
 
 
 def _render_traceback(console: Console, exc_info: BaseException) -> None:
+    """Render a Rich traceback for ``exc_info`` to ``console``."""
     renderable = Traceback.from_exception(
         type(exc_info),
         exc_info,
@@ -231,12 +278,14 @@ def _render_traceback(console: Console, exc_info: BaseException) -> None:
 
 
 def _render_summary(console: Console, exc_info: BaseException, length_limit: int) -> None:
+    """Render a concise summary for ``exc_info`` with truncation support."""
     message = Text(f"{type(exc_info).__name__}: {exc_info}", style="bold red")
     summary = _truncate_message(message, length_limit)
     console.print(summary)
 
 
 def _truncate_message(message: Text, length_limit: int) -> Text:
+    """Return ``message`` truncated to ``length_limit`` characters when needed."""
     if len(message.plain) <= length_limit:
         return message
     truncated = f"{message.plain[:length_limit]} ... [TRUNCATED at {length_limit} characters]"
@@ -244,6 +293,7 @@ def _truncate_message(message: Text, length_limit: int) -> Text:
 
 
 def _finalise_console(console: Console) -> None:
+    """Flush the console file handle to ensure output reaches the user."""
     console.file.flush()
 
 
@@ -292,10 +342,12 @@ def handle_cli_exception(
 
 
 def _resolve_signal_specs(specs: Sequence[SignalSpec] | None) -> Sequence[SignalSpec]:
+    """Resolve caller-provided signal specs, defaulting to standard ones."""
     return specs if specs is not None else default_signal_specs()
 
 
 def _signal_exit_code(exc: BaseException, specs: Sequence[SignalSpec], echo: _Echo) -> int | None:
+    """Return a signal exit code when ``exc`` matches one of ``specs``."""
     for spec in specs:
         if isinstance(exc, spec.exception):
             echo(spec.message, err=True)
@@ -304,12 +356,14 @@ def _signal_exit_code(exc: BaseException, specs: Sequence[SignalSpec], echo: _Ec
 
 
 def _broken_pipe_exit(exc: BaseException) -> int | None:
+    """Return the configured broken-pipe exit code when applicable."""
     if isinstance(exc, BrokenPipeError):
         return int(config.broken_pipe_exit_code)
     return None
 
 
 def _click_exit_code(exc: BaseException) -> int | None:
+    """Let Click exceptions decide their own exit codes."""
     if isinstance(exc, click.ClickException):
         exc.show()
         return exc.exit_code
@@ -317,23 +371,33 @@ def _click_exit_code(exc: BaseException) -> int | None:
 
 
 def _system_exit_code(exc: BaseException) -> int | None:
+    """Extract the integer payload from ``SystemExit`` when present."""
     if not isinstance(exc, SystemExit):
         return None
     return _safe_system_exit_code(exc)
 
 
 def _safe_system_exit_code(exc: SystemExit) -> int:
+    """Read the ``SystemExit`` payload defensively, defaulting to failure.
+
+    Parameters:
+        exc: ``SystemExit`` raised by user code or Click internals.
+    Returns:
+        Integer payload when coercible; otherwise ``1``.
+    """
     with suppress(Exception):
         return int(exc.code or 0)
     return 1
 
 
 def _render_and_translate(exc: BaseException) -> int:
+    """Render the exception according to configuration, then resolve a code."""
     _print_exception_with_active_mode()
     return get_system_exit_code(exc)
 
 
 def _print_exception_with_active_mode() -> None:
+    """Invoke :func:`print_exception_message`, tolerating legacy signatures."""
     try:
         print_exception_message(trace_back=config.traceback)
     except TypeError:
@@ -389,6 +453,8 @@ def run_cli(
 
 
 def _default_exception_handler(specs: Sequence[SignalSpec]) -> Callable[[BaseException], int]:
+    """Build the default exception handler bound to ``specs``."""
+
     def _handler(exc: BaseException) -> int:
         return handle_cli_exception(exc, signal_specs=specs)
 
@@ -400,6 +466,7 @@ def _maybe_install_signals(
     signal_installer: Callable[[Sequence[SignalSpec] | None], Callable[[], None]] | None,
     specs: Sequence[SignalSpec],
 ) -> Callable[[], None] | None:
+    """Install signal handlers when requested and return a restorer."""
     if not install_signals:
         return None
     installer = signal_installer or install_signal_handlers
@@ -407,14 +474,17 @@ def _maybe_install_signals(
 
 
 def _invoke_command(cli: ClickCommand, argv: Sequence[str] | None, prog_name: str | None) -> None:
+    """Invoke the Click command with ``standalone_mode`` disabled."""
     cli.main(args=_normalised_args(argv), standalone_mode=False, prog_name=prog_name)
 
 
 def _normalised_args(argv: Sequence[str] | None) -> Sequence[str] | None:
+    """Return ``argv`` as a mutable list when provided, otherwise ``None``."""
     return list(argv) if argv is not None else None
 
 
 def _restore_handlers_if_needed(restore: Callable[[], None] | None) -> None:
+    """Invoke the signal restorer callback when one was provided."""
     if restore is None:
         return
     restore()

@@ -27,7 +27,18 @@ Resolver = Callable[[BaseException], int | None]
 
 
 def get_system_exit_code(exc: BaseException) -> int:
-    """Map an exception to an OS-appropriate exit status."""
+    """Why:
+        Ensure all uncaught exceptions translate into deterministic exit codes.
+    What:
+        Iterate resolver strategies until one yields an integer status suitable
+        for :func:`sys.exit`.
+    Parameters:
+        exc: Exception raised by application or adapter code.
+    Returns:
+        Integer exit code derived from OS conventions or configuration.
+    Side Effects:
+        None.
+    """
 
     for resolver in _resolver_chain():
         code = resolver(exc)
@@ -37,7 +48,17 @@ def get_system_exit_code(exc: BaseException) -> int:
 
 
 def _resolver_chain() -> Iterable[Resolver]:
-    """Return resolvers in the order we honour them."""
+    """Why:
+        Encapsulate precedence so behaviour stays consistent across callers.
+    What:
+        Yield resolver callables ordered from most specific to most general.
+    Parameters:
+        None.
+    Returns:
+        Iterable of resolver callables.
+    Side Effects:
+        None.
+    """
 
     return (
         _code_from_called_process_error,
@@ -52,36 +73,103 @@ def _resolver_chain() -> Iterable[Resolver]:
 
 
 def _code_from_called_process_error(exc: BaseException) -> int | None:
+    """Why:
+        Preserve exit statuses produced by failing subprocesses.
+    What:
+        Inspect ``exc`` for a numeric ``returncode`` attribute and propagate it.
+    Parameters:
+        exc: Exception raised by :mod:`subprocess` helpers.
+    Returns:
+        Numeric return code or ``None`` when the value is unusable.
+    Side Effects:
+        None.
+    """
     if not isinstance(exc, subprocess.CalledProcessError):
         return None
     return _safe_int(getattr(exc, "returncode", None)) or 1
 
 
 def _code_from_keyboard_interrupt(exc: BaseException) -> int | None:
+    """Why:
+        Align with shell conventions for Ctrl+C interrupts.
+    What:
+        Return ``130`` when ``exc`` is ``KeyboardInterrupt``.
+    Parameters:
+        exc: Exception object raised by Python.
+    Returns:
+        ``130`` or ``None`` when not applicable.
+    Side Effects:
+        None.
+    """
     if isinstance(exc, KeyboardInterrupt):
         return 130
     return None
 
 
 def _code_from_winerror_attribute(exc: BaseException) -> int | None:
+    """Why:
+        Windows APIs expose failure reasons via ``winerror`` rather than ``errno``.
+    What:
+        Parse ``exc.winerror`` into an integer when present.
+    Parameters:
+        exc: Exception potentially exposing a ``winerror`` attribute.
+    Returns:
+        Integer winerror or ``None`` when unavailable.
+    Side Effects:
+        None.
+    """
     if not hasattr(exc, "winerror"):
         return None
     return _safe_int(getattr(exc, "winerror"))
 
 
 def _code_from_broken_pipe(exc: BaseException) -> int | None:
+    """Why:
+        Honour the configurable exit code for truncated pipelines.
+    What:
+        Return :data:`config.broken_pipe_exit_code` when ``exc`` is a
+        ``BrokenPipeError``.
+    Parameters:
+        exc: Exception under evaluation.
+    Returns:
+        Configured exit code or ``None`` when the exception is unrelated.
+    Side Effects:
+        None.
+    """
     if isinstance(exc, BrokenPipeError):
         return int(config.broken_pipe_exit_code)
     return None
 
 
 def _code_from_errno(exc: BaseException) -> int | None:
+    """Why:
+        Preserve errno semantics for standard filesystem and OS errors.
+    What:
+        Convert the ``errno`` attribute into an integer when present.
+    Parameters:
+        exc: Exception potentially carrying an ``errno`` attribute.
+    Returns:
+        Parsed integer errno or ``None`` when unavailable.
+    Side Effects:
+        None.
+    """
     if not isinstance(exc, OSError):
         return None
     return _safe_int(getattr(exc, "errno", None))
 
 
 def _code_from_system_exit(exc: BaseException) -> int | None:
+    """Why:
+        ``sys.exit`` payloads should be honoured when safe.
+    What:
+        Validate and return the embedded ``SystemExit.code`` value.
+    Parameters:
+        exc: Exception propagated by ``sys.exit``.
+    Returns:
+        Integer payload, ``0`` for ``None`` payloads, or ``1`` on failure.
+    Side Effects:
+        None.
+    """
     if not isinstance(exc, SystemExit):
         return None
 
@@ -95,12 +183,34 @@ def _code_from_system_exit(exc: BaseException) -> int | None:
 
 
 def _code_from_sysexits_mode(exc: BaseException) -> int | None:
+    """Why:
+        Honour the optional sysexits configuration for shell-centric workflows.
+    What:
+        Delegate to :func:`_sysexits_mapping` when sysexits mode is enabled.
+    Parameters:
+        exc: Exception under evaluation.
+    Returns:
+        Sysexits-derived integer or ``None`` when mode is disabled.
+    Side Effects:
+        None.
+    """
     if config.exit_code_style != "sysexits":
         return None
     return _sysexits_mapping(exc)
 
 
 def _code_from_platform_mapping(exc: BaseException) -> int | None:
+    """Why:
+        Provide sensible defaults for common exceptions when specific resolvers fail.
+    What:
+        Consult the platform table for an exit code matching ``exc``.
+    Parameters:
+        exc: Exception under evaluation.
+    Returns:
+        Integer exit code or ``None``.
+    Side Effects:
+        None.
+    """
     for exc_type, code in _platform_exception_map().items():
         if isinstance(exc, exc_type):
             return code
@@ -108,12 +218,35 @@ def _code_from_platform_mapping(exc: BaseException) -> int | None:
 
 
 def _platform_exception_map() -> Mapping[type[BaseException], int]:
+    """Why:
+        Different platforms use distinct numeric codes for the same errors.
+    What:
+        Return either the POSIX or Windows mapping dictionary based on
+        :data:`os.name`.
+    Parameters:
+        None.
+    Returns:
+        Dictionary mapping exception types to integer exit codes.
+    Side Effects:
+        None.
+    """
     if os.name == "posix":
         return _posix_exception_map()
     return _windows_exception_map()
 
 
 def _posix_exception_map() -> Mapping[type[BaseException], int]:
+    """Why:
+        Keep POSIX-specific errno defaults centralised and documented.
+    What:
+        Provide a dictionary mapping high-level exceptions to POSIX exit codes.
+    Parameters:
+        None.
+    Returns:
+        Dictionary of exception types and exit codes.
+    Side Effects:
+        None.
+    """
     return {
         FileNotFoundError: 2,
         PermissionError: 13,
@@ -128,6 +261,17 @@ def _posix_exception_map() -> Mapping[type[BaseException], int]:
 
 
 def _windows_exception_map() -> Mapping[type[BaseException], int]:
+    """Why:
+        Keep Windows-specific winerror defaults centralised and documented.
+    What:
+        Provide a dictionary mapping high-level exceptions to Windows exit codes.
+    Parameters:
+        None.
+    Returns:
+        Dictionary of exception types and exit codes.
+    Side Effects:
+        None.
+    """
     return {
         FileNotFoundError: 2,
         PermissionError: 5,
@@ -142,6 +286,18 @@ def _windows_exception_map() -> Mapping[type[BaseException], int]:
 
 
 def _safe_int(value: object | None) -> int | None:
+    """Attempt to coerce ``value`` into an integer, returning ``None`` on failure.
+
+    Why:
+        ``errno`` and ``winerror`` fields may be ``None`` or non-numeric
+        objects; this helper converts safely without raising.
+    Parameters:
+        value: Object expected to represent an integer.
+    Returns:
+        Parsed integer or ``None`` when conversion fails.
+    Side Effects:
+        None.
+    """
     try:
         if value is None:
             return None
@@ -151,15 +307,16 @@ def _safe_int(value: object | None) -> int | None:
 
 
 def _sysexits_mapping(exc: BaseException) -> int:
-    """Translate an exception into BSD ``sysexits`` semantics.
-
-    Why:
-        Provide shell-friendly exit codes when callers opt into sysexits mode
-        via :data:`config.exit_code_style`.
+    """Why:
+        Provide shell-friendly exit codes when callers opt into sysexits mode.
+    What:
+        Map exceptions onto BSD ``sysexits`` constants.
     Parameters:
         exc: Exception raised by application logic.
     Returns:
-        Integer drawn from the sysexits range (e.g. 64 for usage errors).
+        Integer drawn from the sysexits range (e.g. ``64`` for usage errors).
+    Side Effects:
+        None.
     """
 
     if isinstance(exc, SystemExit):

@@ -44,7 +44,7 @@
       {
         packages.default = pypkgs.buildPythonPackage {
           pname = "lib_cli_exit_tools";
-          version = "1.5.0";
+          version = "1.6.0";
           pyproject = true;
           src = ../..;
           nativeBuildInputs = [ hatchlingVendor ];

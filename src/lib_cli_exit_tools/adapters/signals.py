@@ -76,7 +76,17 @@ _Handler = Callable[[int, FrameType | None], None]
 
 
 def default_signal_specs(extra: Iterable[SignalSpec] | None = None) -> List[SignalSpec]:
-    """Build the default list of signal specifications for the host platform."""
+    """Build the default list of signal specifications for the host platform.
+
+    Why:
+        The application runner needs a predictable baseline of signals to
+        install without duplicating platform checks.
+    Parameters:
+        extra: Optional iterable of additional ``SignalSpec`` instances to
+            append for caller-specific behaviour.
+    Returns:
+        List of signal specifications tailored to the current interpreter.
+    """
 
     specs: List[SignalSpec] = _standard_signal_specs()
     if extra is not None:
@@ -102,12 +112,14 @@ def install_signal_handlers(specs: Sequence[SignalSpec] | None = None) -> Callab
 
 
 def _choose_specs(specs: Sequence[SignalSpec] | None) -> List[SignalSpec]:
+    """Return a concrete list of signal specs, defaulting when ``None``."""
     if specs is None:
         return default_signal_specs()
     return list(specs)
 
 
 def _register_handlers(specs: Sequence[SignalSpec]) -> List[tuple[int, object]]:
+    """Register handlers for each ``SignalSpec`` and capture previous handlers."""
     previous: List[tuple[int, object]] = []
     for spec in specs:
         handler = _make_raise_handler(spec.exception)
@@ -116,6 +128,7 @@ def _register_handlers(specs: Sequence[SignalSpec]) -> List[tuple[int, object]]:
 
 
 def _install_handler(signum_value: int, handler: _Handler, previous: List[tuple[int, object]]) -> None:
+    """Install ``handler`` for ``signum_value`` and remember the prior handler."""
     try:
         current = signal.getsignal(signum_value)
         signal.signal(signum_value, handler)
@@ -125,18 +138,21 @@ def _install_handler(signum_value: int, handler: _Handler, previous: List[tuple[
 
 
 def _restore_handlers(previous: Sequence[tuple[int, object]]) -> None:
+    """Restore previously registered signal handlers."""
     for signum_value, prior in previous:
         with suppress(Exception):  # pragma: no cover - restore best-effort
             signal.signal(signum_value, prior)  # type: ignore[arg-type]
 
 
 def _standard_signal_specs() -> List[SignalSpec]:
+    """Return the base set of signal specifications for all platforms."""
     specs: List[SignalSpec] = [_sigint_spec()]
     specs.extend(_optional_specs())
     return specs
 
 
 def _sigint_spec() -> SignalSpec:
+    """Return the ``SIGINT`` specification shared across all platforms."""
     return SignalSpec(
         signum=signal.SIGINT,
         exception=SigIntInterrupt,
@@ -146,11 +162,13 @@ def _sigint_spec() -> SignalSpec:
 
 
 def _optional_specs() -> Iterable[SignalSpec]:
+    """Yield platform-conditional signal specifications."""
     yield from _maybe_sigterm_spec()
     yield from _maybe_sigbreak_spec()
 
 
 def _maybe_sigterm_spec() -> Iterable[SignalSpec]:
+    """Yield the ``SIGTERM`` specification when supported by the host."""
     if hasattr(signal, "SIGTERM"):
         yield SignalSpec(
             signum=getattr(signal, "SIGTERM"),
@@ -161,6 +179,7 @@ def _maybe_sigterm_spec() -> Iterable[SignalSpec]:
 
 
 def _maybe_sigbreak_spec() -> Iterable[SignalSpec]:
+    """Yield the ``SIGBREAK`` specification when running on Windows."""
     if hasattr(signal, "SIGBREAK"):
         yield SignalSpec(
             signum=getattr(signal, "SIGBREAK"),
