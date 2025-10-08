@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import signal
 import subprocess
 import sys
@@ -76,7 +77,13 @@ def _run_sigbreak_child(tmp_path: Path) -> tuple[str, str, str, int]:
     assert proc.stdout is not None
     try:
         ready_line = proc.stdout.readline().strip()
-        proc.send_signal(signal.SIGBREAK)  # type: ignore[attr-defined]
+        ctrl_break = getattr(signal, "CTRL_BREAK_EVENT", None)
+        if ctrl_break is None:
+            raise pytest.skip("CTRL_BREAK_EVENT unavailable on this platform")
+        try:
+            proc.send_signal(ctrl_break)
+        except ValueError:
+            os.kill(proc.pid, ctrl_break)  # type: ignore[arg-type]
         stdout, stderr = proc.communicate(timeout=20)
     finally:
         if proc.poll() is None:
