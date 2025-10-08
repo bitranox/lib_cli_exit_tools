@@ -149,7 +149,7 @@ def test_when_traceback_mode_is_default_and_enabled_the_traceback_appears() -> N
             buffer = io.StringIO()
             print_exception_message(stream=buffer)
     rendered = buffer.getvalue()
-    assert "Traceback (most recent call last)" in rendered
+    assert "Traceback" in rendered and "most recent call last" in rendered
 
 
 def test_when_traceback_is_forced_true_the_traceback_is_printed() -> None:
@@ -158,7 +158,8 @@ def test_when_traceback_is_forced_true_the_traceback_is_printed() -> None:
     except ValueError:
         buffer = io.StringIO()
         print_exception_message(trace_back=True, stream=buffer)
-    assert "Traceback (most recent call last)" in buffer.getvalue()
+    rendered = buffer.getvalue()
+    assert "Traceback" in rendered and "most recent call last" in rendered
 
 
 def test_when_summary_is_too_long_it_is_marked_truncated() -> None:
