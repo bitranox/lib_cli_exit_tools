@@ -117,3 +117,10 @@ def test_sysexits_value_error_maps_to_usage_code() -> None:
 def test_sysexits_permission_error_maps_to_permission_code() -> None:
     config.exit_code_style = "sysexits"
     assert get_system_exit_code(PermissionError("nope")) == 77
+
+
+def test_unknown_exception_falls_back_to_generic_failure() -> None:
+    class Oddball(Exception):
+        pass
+
+    assert get_system_exit_code(Oddball("mystery")) == 1

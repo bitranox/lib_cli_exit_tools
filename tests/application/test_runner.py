@@ -129,6 +129,22 @@ def test_print_exception_message_writes_traceback() -> None:
     assert "Traceback" in buffer.getvalue()
 
 
+def test_print_exception_message_truncates_long_summary() -> None:
+    try:
+        raise RuntimeError("""this message repeats over and over to trigger truncation""" * 10)
+    except RuntimeError:
+        buffer = io.StringIO()
+        print_exception_message(trace_back=False, length_limit=20, stream=buffer)
+    rendered = buffer.getvalue()
+    assert "TRUNCATED" in rendered and len(rendered) > 0
+
+
+def test_print_exception_message_stays_silent_when_no_exception() -> None:
+    buffer = io.StringIO()
+    print_exception_message(stream=buffer)
+    assert buffer.getvalue() == ""
+
+
 def test_print_exception_message_respects_force_colour(monkeypatch: pytest.MonkeyPatch) -> None:
     recorded: dict[str, object] = {}
 
