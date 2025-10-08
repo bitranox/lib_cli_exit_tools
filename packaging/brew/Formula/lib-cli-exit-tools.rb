@@ -4,7 +4,7 @@ class LibCliExitTools < Formula
   desc "CLI exit handling helpers: clean signals, exit codes, and error printing"
   homepage "https://github.com/bitranox/lib_cli_exit_tools"
   url "https://github.com/bitranox/lib_cli_exit_tools/archive/refs/tags/v1.6.0.tar.gz"
-  sha256 "7546f92ac8efbd214c1d55ff75881616636cab151f373b13f4efc1e33975c1d5"
+  sha256 "c6330c6abb5ee0058d3e8e1b6ef7229a7c9c01d3ce2e7eac8ae819903ba345ee"
   license "MIT"
 
   depends_on "python@3.13"
