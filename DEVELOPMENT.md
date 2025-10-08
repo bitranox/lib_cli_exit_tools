@@ -93,6 +93,10 @@ COVERAGE=off make test       # disable coverage locally
 COVERAGE=on make test        # force coverage and generate coverage.xml/codecov.xml
 ```
 
+The pytest suite uses OS markers (`skipif` guards) to exercise POSIX-, Windows-,
+and platform-agnostic behaviours. Run `make test` on every platform you ship to
+keep the signal-handling guarantees honest.
+
 ### Local Codecov uploads
 
 - `make test` (with coverage enabled) generates `coverage.xml` and `codecov.xml`, then attempts to upload via the Codecov CLI or the bash uploader.

@@ -46,8 +46,21 @@ def test_install_signal_handlers_records_previous_handlers(monkeypatch: pytest.M
 
     assert restored == [(signum, f"prev-{signum}") for signum, _ in recorded]
 
+    for signum, handler in recorded:
+        callable_handler = handler  # mypy/pyright: handler is callable
+        with pytest.raises(signals.SigIntInterrupt):
+            callable_handler(signum, None)  # type: ignore[misc]
 
-def test_make_raise_handler_raises_the_given_exception() -> None:
-    handler = signals._make_raise_handler(signals.SigIntInterrupt)  # type: ignore[attr-defined]
-    with pytest.raises(signals.SigIntInterrupt):
-        handler(signal.SIGINT, None)
+
+@pytest.mark.skipif(not hasattr(signal, "SIGTERM"), reason="SIGTERM not available on this platform")
+def test_default_specs_include_sigterm_when_platform_supports_it() -> None:
+    specs = signals.default_signal_specs()
+    sigterm = getattr(signal, "SIGTERM")
+    assert any(spec.signum == sigterm for spec in specs)
+
+
+@pytest.mark.skipif(not hasattr(signal, "SIGBREAK"), reason="SIGBREAK only exists on Windows")
+def test_default_specs_include_sigbreak_on_windows() -> None:
+    specs = signals.default_signal_specs()
+    sigbreak = getattr(signal, "SIGBREAK")
+    assert any(spec.signum == sigbreak for spec in specs)

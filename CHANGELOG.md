@@ -2,13 +2,13 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.5.0] - 2025-10-08
 
 ### Added
 - Configuration helpers `config_overrides` and `reset_config` so embedders can
   safely tweak and restore global CLI settings without bespoke fixtures.
-
-## [1.5.0] - 2025-09-26
+- Expanded OS-aware test coverage (sysexits mappings, signal restoration, CLI
+  behaviours) and rewritten specs that no longer rely on private helpers.
 
 ### Added
 - CI job that executes the Quickstart notebook on Python 3.13 and validations that ensure packaging metadata stays in sync at tag time.

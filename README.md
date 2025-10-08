@@ -127,6 +127,23 @@ with config_overrides(traceback=True):
 
 To return to baseline defaults, call `lib_cli_exit_tools.reset_config()`.
 
+## Testing
+
+Install the project with development extras before running the full test matrix:
+
+```bash
+pip install -e .[dev]
+```
+
+Afterwards, execute the consolidated quality gate:
+
+```bash
+make test
+```
+
+The suite includes OS-aware cases (POSIX, Windows-specific signal handling), so
+run it on each target platform you support to keep coverage consistent.
+
 ## Public API Reference
 
 The package re-exports the helpers below via `lib_cli_exit_tools.__all__`. Import them directly with `from lib_cli_exit_tools import …`.

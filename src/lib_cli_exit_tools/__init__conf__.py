@@ -1,83 +1,25 @@
-"""Metadata facade that keeps CLI help/version text aligned with packaging data.
-
-Purpose:
-    Mirror :mod:`importlib.metadata` lookups so command output and documentation
-    always reflect the installed distribution without duplicating literals.
-Contents:
-    * Lightweight protocol for metadata objects returned by
-      :func:`importlib.metadata.metadata` across Python versions.
-    * Helpers that resolve individual attributes (version, homepage, author).
-    * Module-level constants exported to CLI consumers.
-System Integration:
-    :mod:`lib_cli_exit_tools.cli` calls into this module to populate ``--version``
-    output and the ``info`` subcommand. Inline documentation references the same
-    constants to keep project facts synchronized.
-"""
+"""Metadata facade that keeps CLI help/version text aligned with packaging data."""
 
 from __future__ import annotations
 
 from importlib import metadata as _im
-from typing import Any, Protocol, runtime_checkable
+from importlib.metadata import PackageMetadata
 
 #: Distribution identifier used for importlib.metadata lookups.
 _DIST_NAME = "lib_cli_exit_tools"
 
 
-@runtime_checkable
-class _MetaMapping(Protocol):
-    """Structural type covering legacy and modern metadata objects.
-
-    Why:
-        ``importlib.metadata.metadata`` returns ``Message`` objects on older
-        Python versions and ``PackageMetadata`` on newer ones; both expose ``get``.
-    Methods:
-        get(str, object | None) -> object:
-            Retrieve a metadata field with a default fallback.
-    """
-
-    def get(self, __key: str, __default: object = ...) -> object: ...
+def _get_str(meta: PackageMetadata | None, key: str, default: str = "") -> str:
+    if meta is None:
+        return default
+    value = meta.get(key)
+    return value if isinstance(value, str) else default
 
 
-def _get_str(m: _MetaMapping, key: str, default: str = "") -> str:
-    """Read a metadata field as a string with a safe fallback.
-
-    Why:
-        ``PackageMetadata`` values may not be strings (e.g., None or email headers).
-        This helper normalises them for CLI output.
-    Parameters:
-        m: Metadata mapping returned by :mod:`importlib.metadata`.
-        key: Metadata field name.
-        default: Value to use when the field is missing or not a string.
-    Returns:
-        Extracted string or ``default``.
-    Examples:
-        >>> class Dummy(dict):
-        ...     def get(self, key, default=""):
-        ...         return super().get(key, default)
-        >>> _get_str(Dummy({"Summary": "demo"}), "Summary", "fallback")
-        'demo'
-        >>> _get_str(Dummy({}), "Summary", "fallback")
-        'fallback'
-    """
-    v = m.get(key, default)
-    return v if isinstance(v, str) else default
-
-
-def _meta() -> Any | None:
-    """Return raw package metadata or ``None`` when the distribution is absent.
-
-    Why:
-        Downstream helpers reuse the same metadata object to avoid redundant
-        :mod:`importlib.metadata` lookups.
-    Returns:
-        Metadata mapping or ``None`` if the project has not been installed.
-    Examples:
-        >>> result = _meta()
-        >>> result is None or hasattr(result, "get")
-        True
-    """
+def _meta() -> PackageMetadata | None:
     try:
-        return _im.metadata(_DIST_NAME)
+        meta: PackageMetadata = _im.metadata(_DIST_NAME)
+        return meta
     except _im.PackageNotFoundError:
         return None
 
@@ -100,63 +42,25 @@ def _version() -> str:
         return "0.0.0.dev0"
 
 
-def _home_page(m: Any | None) -> str:
-    """Extract the homepage URL from metadata with a GitHub fallback.
-
-    Why:
-        Keep CLI output pointing at the canonical documentation host.
-    Parameters:
-        m: Metadata mapping or ``None``.
-    Returns:
-        Homepage URL string.
-    Examples:
-        >>> _home_page(None)
-        'https://github.com/bitranox/lib_cli_exit_tools'
-    """
-    if not m:
+def _home_page(meta: PackageMetadata | None) -> str:
+    if meta is None:
         return "https://github.com/bitranox/lib_cli_exit_tools"
-    # cast to protocol for typing purposes
-    mm: _MetaMapping = m  # type: ignore[assignment]
-    hp = _get_str(mm, "Home-page") or _get_str(mm, "Homepage")
-    return hp or "https://github.com/bitranox/lib_cli_exit_tools"
+    primary = _get_str(meta, "Home-page")
+    fallback = _get_str(meta, "Homepage")
+    return primary or fallback or "https://github.com/bitranox/lib_cli_exit_tools"
 
 
-def _author(m: Any | None) -> tuple[str, str]:
-    """Return author name/email pair with safe defaults.
-
-    Why:
-        Populate CLI info output even when metadata is missing or incomplete.
-    Parameters:
-        m: Metadata mapping or ``None``.
-    Returns:
-        Tuple ``(author_name, author_email)``.
-    Examples:
-        >>> _author(None)
-        ('bitranox', 'bitranox@gmail.com')
-    """
-    if not m:
+def _author(meta: PackageMetadata | None) -> tuple[str, str]:
+    if meta is None:
         return ("bitranox", "bitranox@gmail.com")
-    mm: _MetaMapping = m  # type: ignore[assignment]
-    return (_get_str(mm, "Author", ""), _get_str(mm, "Author-email", ""))
+    return (
+        _get_str(meta, "Author", "bitranox"),
+        _get_str(meta, "Author-email", "bitranox@gmail.com"),
+    )
 
 
-def _summary(m: Any | None) -> str:
-    """Derive a human-friendly summary string.
-
-    Why:
-        Reuse the packaging summary for CLI help and docs.
-    Parameters:
-        m: Metadata mapping or ``None``.
-    Returns:
-        Summary text, falling back to a descriptive default.
-    Examples:
-        >>> _summary(None)
-        'Functions to exit a CLI application properly'
-    """
-    if not m:
-        return "Functions to exit a CLI application properly"
-    mm: _MetaMapping = m  # type: ignore[assignment]
-    return _get_str(mm, "Summary", "Functions to exit a CLI application properly")
+def _summary(meta: PackageMetadata | None) -> str:
+    return _get_str(meta, "Summary", "Functions to exit a CLI application properly")
 
 
 def _shell_command() -> str:
@@ -172,11 +76,11 @@ def _shell_command() -> str:
         True
     """
     # Discover console script name mapping to our CLI main, fallback to dist name
-    eps = _im.entry_points(group="console_scripts")
+    entries = _im.entry_points(group="console_scripts")
     target = "lib_cli_exit_tools.cli:main"
-    for ep in list(eps):
-        if ep.value == target:
-            return ep.name
+    for entry in entries:
+        if entry.value == target:
+            return entry.name
     return _DIST_NAME
 
 

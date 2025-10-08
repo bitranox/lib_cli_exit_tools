@@ -43,12 +43,31 @@ def test_config_overrides_refuses_unknown_fields() -> None:
 
 
 def test_reset_config_returns_to_defaults_after_manual_changes() -> None:
-    config.traceback = True
+    reset_config()
+    baseline_traceback = config.traceback
+    baseline_style = config.exit_code_style
+    baseline_broken_pipe = config.broken_pipe_exit_code
+
+    config.traceback = not baseline_traceback
     config.exit_code_style = "sysexits"
-    config.broken_pipe_exit_code = 0
+    config.broken_pipe_exit_code = baseline_broken_pipe + 5
 
     reset_config()
 
-    assert config.traceback is False
-    assert config.exit_code_style == "errno"
-    assert config.broken_pipe_exit_code == 141
+    assert config.traceback is baseline_traceback
+    assert config.exit_code_style == baseline_style
+    assert config.broken_pipe_exit_code == baseline_broken_pipe
+
+
+def test_config_overrides_can_nest_and_restore_in_sequence() -> None:
+    reset_config()
+    outer_traceback = config.traceback
+
+    with config_overrides(traceback=not outer_traceback):
+        inner_broken_pipe = config.broken_pipe_exit_code
+        with config_overrides(broken_pipe_exit_code=inner_broken_pipe + 1):
+            assert config.traceback is (not outer_traceback)
+            assert config.broken_pipe_exit_code == inner_broken_pipe + 1
+        assert config.broken_pipe_exit_code == inner_broken_pipe
+
+    assert config.traceback is outer_traceback
