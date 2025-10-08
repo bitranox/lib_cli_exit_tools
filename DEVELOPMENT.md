@@ -61,9 +61,10 @@ This guide aggregates everything maintainers need for building, testing, and rel
 
 `make menu` launches a colorful terminal UI (powered by `textual`) to browse targets, edit parameters, and run them with live output.
 
-Install dev extras if you haven’t:
+Install dev extras if you haven’t (first mirror the CI guard against pip 25.2):
 
 ```bash
+python -m pip install --upgrade "pip>25.2"
 pip install -e .[dev]
 ```
 
