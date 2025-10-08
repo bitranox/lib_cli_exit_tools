@@ -100,7 +100,7 @@ jobs:
           pipx install dist/*.whl
           "$CLI_BIN" --version 2>/dev/null || python -m "$PACKAGE_MODULE" --version
       - name: Install uv
-        uses: astral-sh/setup-uv@v2
+        uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
       - name: uv tool install
@@ -115,7 +115,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install Nix (flakes)
-        uses: cachix/install-nix-action@v27
+        uses: cachix/install-nix-action@v31
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
