@@ -4,7 +4,7 @@ Thanks for helping improve lib_cli_exit_tools! This guide keeps changes small, s
 
 ## 1) Workflow at a Glance
 
-1. Fork and clone the repository; ensure you are on the latest `master` before starting work.
+1. Fork and clone the repository; ensure you are on the latest `main` before starting work.
 2. Create a feature branch (see naming rules below) and keep the scope of your change tight.
 3. Implement the change, updating or adding tests and documentation alongside the code.
 4. Run `make test` locally; this executes formatting, linting, typing, security scanners, and pytest with coverage.
@@ -53,7 +53,7 @@ Checklist:
 - [ ] No generated artifacts committed.
 - [ ] Version bump: update only `pyproject.toml` and `CHANGELOG.md` (do not edit `src/lib_cli_exit_tools/__init__conf__.py`; version is read from installed metadata). After bump, tag the commit `vX.Y.Z`.
 
-## 8) Security & Configuration
+## 7) Security & Configuration
 
 - No secrets in code or logs. Keep dependencies minimal.
 

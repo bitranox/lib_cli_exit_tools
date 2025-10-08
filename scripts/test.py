@@ -36,7 +36,6 @@ __all__ = ["run_tests", "COVERAGE_TARGET"]
 _toml_module: ModuleType | None = None
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 _TRUTHY = {"1", "true", "yes", "on"}
-_PIP_AUDIT_IGNORE_VULNS = ("GHSA-4xh5-x5gv-qwph",)
 
 
 def _build_default_env() -> dict[str, str]:
@@ -98,7 +97,20 @@ def run_tests(
 
     bootstrap_dev()
 
-    resolved_skip_packaging = skip_packaging_sync if skip_packaging_sync is not None else os.getenv("SKIP_PACKAGING_SYNC", "0").strip().lower() in _TRUTHY
+    if skip_packaging_sync is not None:
+        resolved_skip_packaging = skip_packaging_sync
+    else:
+        enforce_sync = os.getenv("ENFORCE_PACKAGING_SYNC", "0").strip().lower() in _TRUTHY
+        skip_via_env = os.getenv("SKIP_PACKAGING_SYNC", "0").strip().lower() in _TRUTHY
+        running_in_ci = os.getenv("CI", "").strip() != ""
+        if enforce_sync:
+            resolved_skip_packaging = False
+        elif skip_via_env:
+            resolved_skip_packaging = True
+        elif running_in_ci:
+            resolved_skip_packaging = False
+        else:
+            resolved_skip_packaging = True
     resolved_security_skip = os.getenv("SKIP_SECURITY_SCANS", "0").strip().lower() in _TRUTHY
 
     steps: list[tuple[str, Callable[[], None]]] = []
@@ -145,7 +157,7 @@ def run_tests(
             raise SystemExit("Packaging files drifted from pyproject.toml. Run scripts/bump_version.py --sync-packaging and commit the updates.")
 
     if resolved_skip_packaging:
-        click.echo("[skip] Packaging sync disabled (set SKIP_PACKAGING_SYNC=1 to opt out)")
+        click.echo("[skip] Packaging sync skipped (run with ENFORCE_PACKAGING_SYNC=1 or inside CI to enable)")
     else:
         steps.append(("Sync packaging (conda/brew/nix) with pyproject", _sync_packaging))
 
@@ -192,10 +204,7 @@ def run_tests(
                 (
                     "pip-audit dependency scan",
                     _wrap(
-                        cmd=(
-                            ["pip-audit", "--progress-spinner", "off", "--skip-editable"]
-                            + [flag for vuln in _PIP_AUDIT_IGNORE_VULNS for flag in ("--ignore-vuln", vuln)]
-                        ),
+                        cmd=["pip-audit", "--progress-spinner", "off", "--skip-editable"],
                         label="pip-audit",
                         capture=False,
                     ),

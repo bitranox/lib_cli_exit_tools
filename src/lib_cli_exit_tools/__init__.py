@@ -11,42 +11,36 @@ System Integration:
 
 from __future__ import annotations
 
-# Re-export core helpers so consumers avoid deep imports.
-from .lib_cli_exit_tools import (
-    CliSignalError,
-    SigBreakInterrupt,
-    SigIntInterrupt,
-    SigTermInterrupt,
-    SignalSpec,
-    config,
-    config_overrides,
-    default_signal_specs,
-    flush_streams,
-    get_system_exit_code,
-    handle_cli_exception,
-    install_signal_handlers,
-    print_exception_message,
-    reset_config,
-    i_should_fail,
-    run_cli,
-)
+from . import lib_cli_exit_tools as _facade
 
-#: Public API surface guaranteed by semantic versioning.
-__all__ = [
-    "config",
-    "config_overrides",
-    "get_system_exit_code",
-    "print_exception_message",
-    "flush_streams",
-    "SignalSpec",
-    "CliSignalError",
-    "SigIntInterrupt",
-    "SigTermInterrupt",
-    "SigBreakInterrupt",
-    "default_signal_specs",
-    "install_signal_handlers",
-    "handle_cli_exception",
-    "i_should_fail",
-    "reset_config",
-    "run_cli",
-]
+# Re-export core helpers while keeping a single authoritative list of names in
+# the facade module. Attributes are assigned explicitly so static type checkers
+# understand the exports, while the debug assertion keeps this module aligned
+# with the facade surface.
+CliSignalError = _facade.CliSignalError
+SigBreakInterrupt = _facade.SigBreakInterrupt
+SigIntInterrupt = _facade.SigIntInterrupt
+SigTermInterrupt = _facade.SigTermInterrupt
+SignalSpec = _facade.SignalSpec
+config = _facade.config
+config_overrides = _facade.config_overrides
+default_signal_specs = _facade.default_signal_specs
+flush_streams = _facade.flush_streams
+get_system_exit_code = _facade.get_system_exit_code
+handle_cli_exception = _facade.handle_cli_exception
+i_should_fail = _facade.i_should_fail
+install_signal_handlers = _facade.install_signal_handlers
+print_exception_message = _facade.print_exception_message
+reset_config = _facade.reset_config
+run_cli = _facade.run_cli
+
+__all__ = list(_facade.PUBLIC_API)  # pyright: ignore[reportUnsupportedDunderAll]
+
+if __debug__:
+    exported = {name for name in __all__ if name in globals()}
+    if len(exported) != len(__all__):
+        missing = sorted(set(__all__) - exported)
+        raise ImportError(f"lib_cli_exit_tools exports out of sync: missing {missing}")
+    del exported
+
+del _facade

@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Property-based (Hypothesis) tests covering `SystemExit` payload handling and configurable broken-pipe exit codes.
+- POSIX integration test that drives a subprocess through a SIGINT to assert real signal handling behaviour.
+
+### Changed
+- Local `make test` runs skip packaging-sync enforcement unless running in CI or with `ENFORCE_PACKAGING_SYNC=1`, reducing friction for contributors.
+- CLI rich-click styling now preserves coloured tracebacks when stderr supports UTF/TTY output even if stdout is piped.
+- Centralised public API exports so `lib_cli_exit_tools` and its facade share a single authoritative symbol list.
+
 ## [1.5.0] - 2025-10-08
 
 ### Added
@@ -9,8 +20,6 @@ All notable changes to this project are documented here. The format follows [Kee
   safely tweak and restore global CLI settings without bespoke fixtures.
 - Expanded OS-aware test coverage (sysexits mappings, signal restoration, CLI
   behaviours) and rewritten specs that no longer rely on private helpers.
-
-### Added
 - CI job that executes the Quickstart notebook on Python 3.13 and validations that ensure packaging metadata stays in sync at tag time.
 - Automation that keeps Conda, Homebrew, and Nix specs aligned with `pyproject.toml`, including a dedicated `--sync-packaging` mode.
 - Regression tests covering `SystemExit` variants, tolerant output rendering, English signal messages, and ValueError mappings on Windows.

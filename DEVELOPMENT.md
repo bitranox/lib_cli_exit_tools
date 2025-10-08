@@ -109,6 +109,7 @@ keep the signal-handling guarantees honest.
   - Conda: updates `{% set version = "X.Y.Z" %}` and both `python >=X.Y` constraints to match `requires-python`.
   - Homebrew: updates the source URL tag to `vX.Y.Z` and sets `depends_on "python@X.Y"` to match `requires-python`.
   - Nix: updates the package `version`, example `rev = "vX.Y.Z"`, and switches `pkgs.pythonXYZPackages` / `pkgs.pythonXYZ` to match the minimum Python version from `requires-python`.
+- Local `make test` runs skip the sync unless you export `ENFORCE_PACKAGING_SYNC=1` (CI enables it automatically).
 - To run just the sync without bumping versions: `python scripts/bump_version.py --sync-packaging`.
 - On release tags (`v*.*.*`), CI validates that packaging files are consistent with `pyproject.toml` and will fail if they drift.
 

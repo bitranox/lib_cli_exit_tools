@@ -58,6 +58,8 @@ __all__ = [
     "reset_config",
 ]
 
+PUBLIC_API = tuple(__all__)
+
 
 def i_should_fail() -> None:
     """Raise :class:`RuntimeError` to exercise error-handling flows.

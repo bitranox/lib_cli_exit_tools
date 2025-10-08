@@ -6,7 +6,7 @@ Complete
 ## Links & References
 **Feature Requirements:** Not formally captured; inferred from package behavior and README installation notes.  
 **Task/Ticket:** Internal maintenance directive to align documentation with architecture prompts.  
-**Pull Requests:** Pending (documentation refresh).  
+**Pull Requests:** Completed in release [v1.5.0](https://github.com/bitranox/lib_cli_exit_tools/releases/tag/v1.5.0).  
 **Related Files:**
 
 * `src/lib_cli_exit_tools/lib_cli_exit_tools.py`
@@ -66,6 +66,11 @@ Automations and downstream CLIs rely on `lib_cli_exit_tools` for deterministic e
 
 #### Dataclass: `_Config`
 * **Role:** Captures traceback, exit-code style, broken-pipe handling, and Rich colouring toggles.
+* **Fields:**
+  * `traceback` — toggles between Rich traceback rendering and concise red summaries for CLI errors.
+  * `exit_code_style` — selects POSIX/Windows `errno` mappings or BSD `sysexits` semantics.
+  * `broken_pipe_exit_code` — overrides the status returned when `BrokenPipeError` bubbles out of the CLI.
+  * `traceback_force_color` — forces ANSI-coloured tracebacks even when Rich detects a non-TTY sink.
 * **Notes:** Mutations apply process-wide; tests must restore defaults to avoid leakage.
 
 #### Constant: `config`
@@ -130,9 +135,11 @@ Automations and downstream CLIs rely on `lib_cli_exit_tools` for deterministic e
 #### Constant: `CLICK_CONTEXT_SETTINGS`
 * **Purpose:** Standardize help option flags (`-h`, `--help`).
 
-#### Function: `_configure_rich_click_output() -> None`
-* **Purpose:** Neutralize rich-click styling when stdout lacks UTF support (e.g., Windows CI pipes) to prevent `UnicodeEncodeError`.  
-* **Side Effects:** Adjusts global rich-click configuration at import time based on stream capabilities.
+#### Helpers: `_needs_plain_output`, `_stream_is_tty`, `_stream_supports_utf`, `_prefer_ascii_layout`
+* **Purpose:** Detect when stdout lacks UTF-friendly terminals and fall back to ASCII-friendly Rich-Click styling without crashing pipelines.
+
+#### Context Manager: `_temporary_rich_click_configuration() -> Iterator[None]`
+* **Purpose:** Snapshot and restore global Rich-Click configuration while applying the plain-output safeguards for the active invocation.
 
 #### Function: `cli(ctx, traceback) -> None`
 * **Purpose:** Root Click group; records the `--traceback` option and mutates `lib_cli_exit_tools.config.traceback`.
@@ -147,16 +154,15 @@ Automations and downstream CLIs rely on `lib_cli_exit_tools` for deterministic e
 #### Function: `main(argv=None) -> int`
 * **Purpose:** Compose the CLI invocation by delegating to `lib_cli_exit_tools.run_cli`, returning exit codes instead of exiting directly.
 
+#### Helper: `_normalised_arguments(argv)`
+* **Purpose:** Coerce optional argument sequences into the list shape Click expects, keeping adapters free from tuple/list quirks.
+
 ### Module: lib_cli_exit_tools/__init__conf__.py
 * **Purpose:** Expose metadata derived from the installed distribution for use in CLI help/version output.  
 * **Location:** `src/lib_cli_exit_tools/__init__conf__.py`
 
-#### Protocol: `_MetaMapping`
-* **Purpose:** Unify metadata API across Python versions by guaranteeing the `.get` method.
-
 #### Helper Functions: `_get_str`, `_meta`, `_version`, `_home_page`, `_author`, `_summary`, `_shell_command`
-* **Purpose:** Normalize metadata values (strings, URLs, author details) and discover console-script bindings.  
-* **Behavior:** Fall back to safe defaults when metadata is missing.
+* **Purpose:** Normalize metadata values (strings, URLs, author details) and discover console-script bindings while surviving missing metadata.
 
 #### Constants: `name`, `title`, `version`, `homepage`, `author`, `author_email`, `shell_command`
 * **Purpose:** Public metadata consumed by CLI commands and documentation. Values resolve once per import using helper functions.

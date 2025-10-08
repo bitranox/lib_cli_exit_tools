@@ -144,6 +144,10 @@ make test
 The suite includes OS-aware cases (POSIX, Windows-specific signal handling), so
 run it on each target platform you support to keep coverage consistent.
 
+If your environment reports “cannot execute” when running `pytest`, the auto-generated entry-point script likely points at a removed interpreter. Reinstall the dev extras or invoke tests with `python -m pytest` (for example, `python -m pytest tests/`).
+
+When coverage uploads are skipped (no Codecov token), `make test` still writes `coverage.xml` and `codecov.xml` to the project root so you can inspect results locally or feed them into other tooling.
+
 ## Public API Reference
 
 The package re-exports the helpers below via `lib_cli_exit_tools.__all__`. Import them directly with `from lib_cli_exit_tools import …`.

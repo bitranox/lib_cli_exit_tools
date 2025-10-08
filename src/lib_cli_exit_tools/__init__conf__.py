@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from functools import cache
 from importlib import metadata as _im
 from importlib.metadata import PackageMetadata
 
@@ -63,6 +64,7 @@ def _summary(meta: PackageMetadata | None) -> str:
     return _get_str(meta, "Summary", "Functions to exit a CLI application properly")
 
 
+@cache
 def _shell_command() -> str:
     """Discover the console-script entry point bound to the CLI.
 

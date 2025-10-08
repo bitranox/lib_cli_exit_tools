@@ -90,7 +90,8 @@ def _code_from_system_exit(exc: BaseException) -> int | None:
         return code
     if code is None:
         return 0
-    return _safe_int(str(code)) or 1
+    candidate = _safe_int(str(code))
+    return 1 if candidate is None else candidate
 
 
 def _code_from_sysexits_mode(exc: BaseException) -> int | None:

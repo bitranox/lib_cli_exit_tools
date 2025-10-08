@@ -15,7 +15,8 @@ System Integration:
 
 from __future__ import annotations
 
-from typing import Optional, Sequence
+from contextlib import contextmanager
+from typing import Iterator, Optional, Sequence
 
 import rich_click as click
 from rich_click import rich_click as rich_config
@@ -25,14 +26,6 @@ from . import lib_cli_exit_tools
 
 #: Consistent help flag aliases reused across all lib-cli-exit-tools commands.
 CLICK_CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])  # noqa: C408
-
-
-def _configure_rich_click_output() -> None:
-    """Keep rich-click help rendering compatible with limited encodings."""
-
-    stream = click.get_text_stream("stdout")
-    if _needs_plain_output(stream):
-        _prefer_ascii_layout()
 
 
 def _needs_plain_output(stream: object) -> bool:
@@ -58,6 +51,41 @@ def _prefer_ascii_layout() -> None:
     rich_config.STYLE_OPTIONS_PANEL_BOX = None
     rich_config.STYLE_COMMANDS_PANEL_BOX = None
     rich_config.STYLE_ERRORS_PANEL_BOX = None
+
+
+def _snapshot_rich_click_options() -> dict[str, object]:
+    """Capture rich-click global styling toggles for later restoration."""
+
+    attributes = (
+        "FORCE_TERMINAL",
+        "COLOR_SYSTEM",
+        "STYLE_OPTIONS_PANEL_BOX",
+        "STYLE_COMMANDS_PANEL_BOX",
+        "STYLE_ERRORS_PANEL_BOX",
+    )
+    return {name: getattr(rich_config, name, None) for name in attributes}
+
+
+def _restore_rich_click_options(snapshot: dict[str, object]) -> None:
+    """Restore rich-click globals to the captured snapshot."""
+
+    for name, value in snapshot.items():
+        setattr(rich_config, name, value)
+
+
+@contextmanager
+def _temporary_rich_click_configuration() -> Iterator[None]:
+    """Apply plain-output safeguards and restore rich-click globals afterwards."""
+
+    snapshot = _snapshot_rich_click_options()
+    stdout_stream = click.get_text_stream("stdout")
+    stderr_stream = click.get_text_stream("stderr")
+    if _needs_plain_output(stdout_stream) and _needs_plain_output(stderr_stream):
+        _prefer_ascii_layout()
+    try:
+        yield
+    finally:
+        _restore_rich_click_options(snapshot)
 
 
 @click.group(help=__init__conf__.title, context_settings=CLICK_CONTEXT_SETTINGS)
@@ -165,12 +193,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         >>> "Info for" in buffer.getvalue()
         True
     """
-    _configure_rich_click_output()
-    return lib_cli_exit_tools.run_cli(
-        cli,
-        argv=_normalised_arguments(argv),
-        prog_name=__init__conf__.shell_command,
-    )
+    with _temporary_rich_click_configuration():
+        return lib_cli_exit_tools.run_cli(
+            cli,
+            argv=_normalised_arguments(argv),
+            prog_name=__init__conf__.shell_command,
+        )
 
 
 def _normalised_arguments(argv: Optional[Sequence[str]]) -> Optional[Sequence[str]]:

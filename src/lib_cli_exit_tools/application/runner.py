@@ -158,7 +158,7 @@ def _decode_output(output: object) -> Optional[str]:
 
 
 def print_exception_message(
-    trace_back: bool = config.traceback,
+    trace_back: bool | None = None,
     length_limit: int = 500,
     stream: Optional[TextIO] = None,
 ) -> None:
@@ -168,8 +168,9 @@ def print_exception_message(
         Offer a single choke point for rendering user-facing diagnostics so the
         CLI can toggle between terse and verbose output via configuration.
     Parameters:
-        trace_back: When ``True`` render a Rich traceback; otherwise print a
-            truncated red summary.
+        trace_back: When ``None`` (default) reuse :data:`config.traceback`.
+            When ``True`` render a Rich traceback; otherwise print a truncated
+            red summary.
         length_limit: Maximum length of the summary string when tracebacks are
             suppressed.
         stream: Target text stream; defaults to ``sys.stderr``.
@@ -180,6 +181,8 @@ def print_exception_message(
 
     flush_streams()
 
+    effective_traceback = config.traceback if trace_back is None else trace_back
+
     exc_info = _active_exception()
     if exc_info is None:
         return
@@ -188,7 +191,7 @@ def print_exception_message(
     _emit_subprocess_output(exc_info, target_stream)
 
     console = _console_for_tracebacks(target_stream)
-    if trace_back:
+    if effective_traceback:
         _render_traceback(console, exc_info)
     else:
         _render_summary(console, exc_info, length_limit)

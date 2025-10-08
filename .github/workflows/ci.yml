@@ -63,6 +63,13 @@ jobs:
           . .venv_wheel/bin/activate 2>/dev/null || . .venv_wheel/Scripts/activate 2>/dev/null
           pip install dist/*.whl
           "$CLI_BIN" --version 2>/dev/null || python -m "$PACKAGE_MODULE" --version
+      - name: Verify sdist install in clean env
+        shell: bash
+        run: |
+          python -m venv .venv_sdist
+          . .venv_sdist/bin/activate 2>/dev/null || . .venv_sdist/Scripts/activate 2>/dev/null
+          pip install dist/*.tar.gz
+          "$CLI_BIN" --version 2>/dev/null || python -m "$PACKAGE_MODULE" --version
 
   pipx-uv:
     name: pipx/uv verification (ubuntu)

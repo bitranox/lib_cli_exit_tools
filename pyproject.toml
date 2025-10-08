@@ -71,6 +71,12 @@ exclude = [
 [tool.pytest.ini_options]
 addopts = ["--doctest-modules"]
 doctest_optionflags = ["ELLIPSIS", "NORMALIZE_WHITESPACE"]
+markers = [
+  "os_agnostic: test exercises behavior that is the same on every operating system",
+  "posix_only: test applies only to POSIX-style operating systems",
+  "windows_only: test applies only to Windows operating systems",
+  "macos_only: test applies only to macOS operating systems",
+]
 
 [tool.coverage.run]
 branch = true
@@ -86,3 +92,29 @@ omit = [
 ]
 fail_under = 85
 show_missing = true
+
+[tool.importlinter]
+root_package = "lib_cli_exit_tools"
+
+[[tool.importlinter.contracts]]
+name = "Core isolation"
+type = "forbidden"
+source_modules = [
+  "lib_cli_exit_tools.core",
+]
+forbidden_modules = [
+  "lib_cli_exit_tools.application",
+  "lib_cli_exit_tools.adapters",
+  "lib_cli_exit_tools.cli",
+  "lib_cli_exit_tools.lib_cli_exit_tools",
+]
+
+[[tool.importlinter.contracts]]
+name = "Application avoids CLI layer"
+type = "forbidden"
+source_modules = [
+  "lib_cli_exit_tools.application",
+]
+forbidden_modules = [
+  "lib_cli_exit_tools.cli",
+]
