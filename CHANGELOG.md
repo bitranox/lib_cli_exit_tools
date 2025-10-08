@@ -6,7 +6,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ## [Unreleased]
 
 ### Security
-- Avoid the vulnerable pip 25.2 release (GHSA-4xh5-x5gv-qwph) by pinning CI, notebooks, and developer instructions to `pip>25.2`.
+- Avoid the vulnerable pip 25.2 release (GHSA-4xh5-x5gv-qwph) by pinning CI, notebooks, and developer instructions to `pip!=25.2`.
 
 ## [1.6.0] - 2025-10-08
 
