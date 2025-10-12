@@ -74,6 +74,9 @@ ReadyLine = str
 
 @pytest.mark.posix_only
 def test_signal_handlers_translate_sigint_exit_code(tmp_path: Path) -> None:
+    if os.name != "posix":
+        pytest.skip("SIGINT integration test runs only on POSIX platforms")
+
     script = _write_harness(tmp_path)
     env = os.environ | {"PYTHONUNBUFFERED": "1"}
     proc = subprocess.Popen(
