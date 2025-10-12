@@ -3,7 +3,7 @@
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## [Unreleased]
+## [2.0.0] - 2025-10-12
 
 ### Changed
 - Modernised runtime and automation tooling to rely on native Python 3.13 APIs, including updated signal adapters and simplified exception rendering.
@@ -12,7 +12,6 @@ All notable changes to this project are documented here. The format follows [Kee
 - Brought script modules and metadata fallbacks back into coverage reporting and removed ad-hoc sys.path manipulation from the automation launcher.
 - Adopted PEP 604 union typing throughout the CLI runner and facade helpers to underline the Python 3.13-only baseline and to keep function signatures declarative.
 - Updated packaging metadata to require `build>=1.3.0`, `pytest-cov>=7.0.0`, `twine>=6.2.0`, and `hatchling>=1.27.0`, matching the latest stable releases verified via `pip index`.
-- Swapped the CI uv setup step to `astral-sh/setup-uv@v6` so automation stays aligned with the maintained major tag.
 - Restored real signal integration coverage and Hypothesis-backed exit-code property tests to guard regression-prone paths.
 
 ### Removed
