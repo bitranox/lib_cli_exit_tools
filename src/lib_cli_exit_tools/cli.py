@@ -16,7 +16,7 @@ System Integration:
 from __future__ import annotations
 
 from contextlib import contextmanager
-from typing import Iterator, Optional, Sequence
+from typing import Iterator, Sequence
 
 import rich_click as click
 from rich_click import rich_click as rich_config
@@ -30,21 +30,22 @@ CLICK_CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])  # noqa: C408
 
 
 def _needs_plain_output(stream: object) -> bool:
-    """Return ``True`` when ``stream`` cannot safely render Rich styling."""
+    """Tell whether ``stream`` will honour Rich styling."""
+
     return (not _stream_is_tty(stream)) or (not _stream_supports_utf(stream))
 
 
 def _stream_is_tty(stream: object) -> bool:
-    """Return ``True`` when ``stream`` reports itself as a TTY."""
+    """Return ``True`` when ``stream`` behaves like a TTY."""
     checker = getattr(stream, "isatty", lambda: False)
     try:
         return bool(checker())
-    except Exception:  # pragma: no cover - defensive
+    except Exception:  # pragma: no cover - defensive shield
         return False
 
 
 def _stream_supports_utf(stream: object) -> bool:
-    """Return ``True`` when ``stream`` advertises a UTF-capable encoding."""
+    """Tell whether ``stream`` reports a UTF-friendly encoding."""
     encoding = (getattr(stream, "encoding", "") or "").lower()
     return "utf" in encoding
 
@@ -124,11 +125,11 @@ def cli(ctx: click.Context, traceback: bool) -> None:
         >>> result.exit_code == 0
         True
     """
-    _remember_traceback_flag(ctx, traceback)
+    _store_traceback_flag(ctx, traceback)
     lib_cli_exit_tools.config.traceback = traceback
 
 
-def _remember_traceback_flag(ctx: click.Context, traceback: bool) -> None:
+def _store_traceback_flag(ctx: click.Context, traceback: bool) -> None:
     ctx.ensure_object(dict)
     ctx.obj["traceback"] = traceback
 
@@ -176,7 +177,7 @@ def cli_fail() -> None:
     lib_cli_exit_tools.i_should_fail()
 
 
-def main(argv: Optional[Sequence[str]] = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     """Run the CLI with :func:`lib_cli_exit_tools.run_cli` wiring.
 
     Why:
@@ -201,11 +202,6 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     with _temporary_rich_click_configuration():
         return lib_cli_exit_tools.run_cli(
             cli,
-            argv=_normalised_arguments(argv),
+            argv=list(argv) if argv is not None else None,
             prog_name=__init__conf__.shell_command,
         )
-
-
-def _normalised_arguments(argv: Optional[Sequence[str]]) -> Optional[Sequence[str]]:
-    """Convert optional sequences to mutable lists for Click consumption."""
-    return list(argv) if argv is not None else None

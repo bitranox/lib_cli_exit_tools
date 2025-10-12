@@ -3,6 +3,27 @@
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [Unreleased]
+
+### Changed
+- Modernised runtime and automation tooling to rely on native Python 3.13 APIs, including updated signal adapters and simplified exception rendering.
+- Raised development dependency floors (codecov-cli, import-linter, bandit, pip-audit, pyright, pytest, pytest-asyncio, ruff, textual) to the latest stable releases.
+- Refined documentation to reflect the current behaviour-focused test suite and active automation scripts.
+- Brought script modules and metadata fallbacks back into coverage reporting and removed ad-hoc sys.path manipulation from the automation launcher.
+- Adopted PEP 604 union typing throughout the CLI runner and facade helpers to underline the Python 3.13-only baseline and to keep function signatures declarative.
+- Updated packaging metadata to require `build>=1.3.0`, `pytest-cov>=7.0.0`, `twine>=6.2.0`, and `hatchling>=1.27.0`, matching the latest stable releases verified via `pip index`.
+- Swapped the CI uv setup step to `astral-sh/setup-uv@v6` so automation stays aligned with the maintained major tag.
+- Restored real signal integration coverage and Hypothesis-backed exit-code property tests to guard regression-prone paths.
+
+### Removed
+- Retired Conda/Homebrew/Nix packaging automation and updated documentation to reflect the PyPI-only distribution path.
+- Dropped legacy ImportError-based script fallbacks now that automation entry points run as a proper package.
+
+### Documentation
+- Highlighted the Python 3.13 baseline, dependency refresh, and updated CI action set in the README.
+- Documented the revived signal integration suite and property-based tests in the system module reference.
+
+
 ## [1.6.0] - 2025-10-08
 
 ### Added

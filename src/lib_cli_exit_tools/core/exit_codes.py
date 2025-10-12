@@ -30,8 +30,8 @@ def get_system_exit_code(exc: BaseException) -> int:
     """Why:
         Ensure all uncaught exceptions translate into deterministic exit codes.
     What:
-        Iterate resolver strategies until one yields an integer status suitable
-        for :func:`sys.exit`.
+        Walk the resolver pipeline and return the first concrete exit code,
+        defaulting to ``1`` when nothing matches.
     Parameters:
         exc: Exception raised by application or adapter code.
     Returns:
@@ -40,14 +40,20 @@ def get_system_exit_code(exc: BaseException) -> int:
         None.
     """
 
-    for resolver in _resolver_chain():
+    code = _first_resolved_code(exc)
+    return 1 if code is None else code
+
+
+def _first_resolved_code(exc: BaseException) -> int | None:
+    """Return the first exit code produced by the resolver chain."""
+    for resolver in _exit_resolvers():
         code = resolver(exc)
         if code is not None:
             return code
-    return 1
+    return None
 
 
-def _resolver_chain() -> Iterable[Resolver]:
+def _exit_resolvers() -> Iterable[Resolver]:
     """Why:
         Encapsulate precedence so behaviour stays consistent across callers.
     What:
@@ -186,7 +192,7 @@ def _code_from_sysexits_mode(exc: BaseException) -> int | None:
     """Why:
         Honour the optional sysexits configuration for shell-centric workflows.
     What:
-        Delegate to :func:`_sysexits_mapping` when sysexits mode is enabled.
+        Delegate to the sysexits resolver pipeline when the mode is enabled.
     Parameters:
         exc: Exception under evaluation.
     Returns:
@@ -196,7 +202,7 @@ def _code_from_sysexits_mode(exc: BaseException) -> int | None:
     """
     if config.exit_code_style != "sysexits":
         return None
-    return _sysexits_mapping(exc)
+    return _sysexits_resolved_code(exc)
 
 
 def _code_from_platform_mapping(exc: BaseException) -> int | None:
@@ -306,39 +312,92 @@ def _safe_int(value: object | None) -> int | None:
         return None
 
 
-def _sysexits_mapping(exc: BaseException) -> int:
-    """Why:
-        Provide shell-friendly exit codes when callers opt into sysexits mode.
-    What:
-        Map exceptions onto BSD ``sysexits`` constants.
-    Parameters:
-        exc: Exception raised by application logic.
-    Returns:
-        Integer drawn from the sysexits range (e.g. ``64`` for usage errors).
-    Side Effects:
-        None.
-    """
+def _sysexits_resolved_code(exc: BaseException) -> int:
+    """Return the sysexits-friendly code for ``exc``."""
+    for resolver in _sysexits_resolvers():
+        code = resolver(exc)
+        if code is not None:
+            return code
+    return 1
 
-    if isinstance(exc, SystemExit):
-        try:
-            return int(exc.code)  # type: ignore[attr-defined]
-        except Exception:
-            return 1
+
+def _sysexits_resolvers() -> Iterable[Resolver]:
+    """Yield sysexits-specific resolver callables."""
+    return (
+        _sysexits_from_system_exit,
+        _sysexits_from_keyboard_interrupt,
+        _sysexits_from_called_process_error,
+        _sysexits_from_broken_pipe,
+        _sysexits_from_usage_errors,
+        _sysexits_from_missing_resource,
+        _sysexits_from_permission_denied,
+        _sysexits_from_io_errors,
+        _sysexits_default,
+    )
+
+
+def _sysexits_from_system_exit(exc: BaseException) -> int | None:
+    """Translate ``SystemExit`` payloads in sysexits mode."""
+    if not isinstance(exc, SystemExit):
+        return None
+    try:
+        return int(exc.code or 0)  # type: ignore[attr-defined]
+    except Exception:
+        return 1
+
+
+def _sysexits_from_keyboard_interrupt(exc: BaseException) -> int | None:
+    """Return the sysexits code for Ctrl+C interrupts."""
     if isinstance(exc, KeyboardInterrupt):
         return 130
-    if isinstance(exc, subprocess.CalledProcessError):
-        try:
-            return int(exc.returncode)
-        except Exception:
-            return 1
+    return None
+
+
+def _sysexits_from_called_process_error(exc: BaseException) -> int | None:
+    """Reuse subprocess return codes when available."""
+    if not isinstance(exc, subprocess.CalledProcessError):
+        return None
+    try:
+        return int(exc.returncode)
+    except Exception:
+        return 1
+
+
+def _sysexits_from_broken_pipe(exc: BaseException) -> int | None:
+    """Forward the configured broken-pipe code."""
     if isinstance(exc, BrokenPipeError):
         return int(config.broken_pipe_exit_code)
+    return None
+
+
+def _sysexits_from_usage_errors(exc: BaseException) -> int | None:
+    """Return the usage-error sysexits code for common argument mistakes."""
     if isinstance(exc, (TypeError, ValueError)):
         return 64
+    return None
+
+
+def _sysexits_from_missing_resource(exc: BaseException) -> int | None:
+    """Map missing resources to ``EX_NOINPUT``."""
     if isinstance(exc, FileNotFoundError):
         return 66
+    return None
+
+
+def _sysexits_from_permission_denied(exc: BaseException) -> int | None:
+    """Translate permission failures to ``EX_NOPERM``."""
     if isinstance(exc, PermissionError):
         return 77
+    return None
+
+
+def _sysexits_from_io_errors(exc: BaseException) -> int | None:
+    """Capture generic IO failures under ``EX_IOERR``."""
     if isinstance(exc, (OSError, IOError)):
         return 74
+    return None
+
+
+def _sysexits_default(exc: BaseException) -> int | None:
+    """Fallback resolver yielding the generic failure code."""
     return 1

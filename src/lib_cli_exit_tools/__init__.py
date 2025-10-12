@@ -33,6 +33,7 @@ install_signal_handlers = _facade.install_signal_handlers
 print_exception_message = _facade.print_exception_message
 reset_config = _facade.reset_config
 run_cli = _facade.run_cli
+cli_session = _facade.cli_session
 
 __all__ = list(_facade.PUBLIC_API)  # pyright: ignore[reportUnsupportedDunderAll]
 

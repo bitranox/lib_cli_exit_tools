@@ -45,8 +45,7 @@ when writing or refracturing Python scripts, apply those Rules :
 
 - `src/lib_cli_exit_tools/`: Python package.
 - `scripts/`: shared automation (build/test/release) reused from scaffold.
-- `packaging/`: Conda, Homebrew, and Nix specs kept in sync via scripts.
-- `tests/`: placeholder suite skipping until logging features exist.
+- `tests/`: behaviour/spec integration suite covering CLI, metadata, and automation workflows.
 
 ### Versioning & Releases
 
@@ -60,7 +59,7 @@ when writing or refracturing Python scripts, apply those Rules :
 
 | Target            | One-line description                                                           |
 |-------------------|--------------------------------------------------------------------------------|
-| `build`           | Build wheel/sdist and attempt Conda/Brew/Nix builds (auto-installs tools).     |
+| `build`           | Build wheel/sdist; validates the Python artifacts locally.                      |
 | `bump`            | Bump version (VERSION=X.Y.Z or PART=major\|minor\|patch) and update changelog. |
 | `bump-major`      | Increment major version ((X+1).0.0).                                           |
 | `bump-minor`      | Increment minor version (X.Y.Z → X.(Y+1).0).                                   |
@@ -71,7 +70,7 @@ when writing or refracturing Python scripts, apply those Rules :
 | `install`         | Editable install.                                                              |
 | `menu`            | Interactive TUI menu (make menu).                                              |
 | `push`            | Commit changes once and push to GitHub (no CI monitoring).                     |
-| `release`         | Tag vX.Y.Z, push, sync packaging, run gh release if available.                 |
+| `release`         | Tag vX.Y.Z, push, and run the release helper (PyPI upload when configured).    |
 | `run`             | Run module entry (`python -m ... --help`).                                     |
 | `test`            | Lint, format, type-check, run tests with coverage, upload to Codecov.          |
 | `version-current` | Print current version from `pyproject.toml`.                                   |

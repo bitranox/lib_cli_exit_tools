@@ -16,10 +16,10 @@ System Integration:
 from __future__ import annotations
 
 import signal
-from contextlib import suppress
+from contextlib import ExitStack
 from dataclasses import dataclass
 from types import FrameType
-from typing import Callable, Iterable, List, Sequence
+from typing import Callable, Iterable, Sequence
 
 __all__ = [
     "CliSignalError",
@@ -75,7 +75,7 @@ class SignalSpec:
 _Handler = Callable[[int, FrameType | None], None]
 
 
-def default_signal_specs(extra: Iterable[SignalSpec] | None = None) -> List[SignalSpec]:
+def default_signal_specs(extra: Iterable[SignalSpec] | None = None) -> list[SignalSpec]:
     """Build the default list of signal specifications for the host platform.
 
     Why:
@@ -88,7 +88,7 @@ def default_signal_specs(extra: Iterable[SignalSpec] | None = None) -> List[Sign
         List of signal specifications tailored to the current interpreter.
     """
 
-    specs: List[SignalSpec] = _standard_signal_specs()
+    specs: list[SignalSpec] = _standard_signal_specs()
     if extra is not None:
         specs.extend(extra)
     return specs
@@ -107,46 +107,35 @@ def install_signal_handlers(specs: Sequence[SignalSpec] | None = None) -> Callab
     """Install signal handlers that re-raise as structured exceptions."""
 
     active_specs = _choose_specs(specs)
-    previous = _register_handlers(active_specs)
-    return lambda: _restore_handlers(previous)
+    stack = _register_handlers(active_specs)
+    return stack.close
 
 
-def _choose_specs(specs: Sequence[SignalSpec] | None) -> List[SignalSpec]:
+def _choose_specs(specs: Sequence[SignalSpec] | None) -> list[SignalSpec]:
     """Return a concrete list of signal specs, defaulting when ``None``."""
     if specs is None:
         return default_signal_specs()
     return list(specs)
 
 
-def _register_handlers(specs: Sequence[SignalSpec]) -> List[tuple[int, object]]:
+def _register_handlers(specs: Sequence[SignalSpec]) -> ExitStack:
     """Register handlers for each ``SignalSpec`` and capture previous handlers."""
-    previous: List[tuple[int, object]] = []
+
+    stack = ExitStack()
     for spec in specs:
         handler = _make_raise_handler(spec.exception)
-        _install_handler(spec.signum, handler, previous)
-    return previous
+        try:
+            previous = signal.getsignal(spec.signum)
+            signal.signal(spec.signum, handler)
+        except (AttributeError, OSError, RuntimeError):  # pragma: no cover - platform differences
+            continue
+        stack.callback(signal.signal, spec.signum, previous)
+    return stack
 
 
-def _install_handler(signum_value: int, handler: _Handler, previous: List[tuple[int, object]]) -> None:
-    """Install ``handler`` for ``signum_value`` and remember the prior handler."""
-    try:
-        current = signal.getsignal(signum_value)
-        signal.signal(signum_value, handler)
-        previous.append((signum_value, current))
-    except (AttributeError, OSError, RuntimeError):  # pragma: no cover - platform differences
-        return
-
-
-def _restore_handlers(previous: Sequence[tuple[int, object]]) -> None:
-    """Restore previously registered signal handlers."""
-    for signum_value, prior in previous:
-        with suppress(Exception):  # pragma: no cover - restore best-effort
-            signal.signal(signum_value, prior)  # type: ignore[arg-type]
-
-
-def _standard_signal_specs() -> List[SignalSpec]:
+def _standard_signal_specs() -> list[SignalSpec]:
     """Return the base set of signal specifications for all platforms."""
-    specs: List[SignalSpec] = [_sigint_spec()]
+    specs: list[SignalSpec] = [_sigint_spec()]
     specs.extend(_optional_specs())
     return specs
 

@@ -25,7 +25,7 @@ Requires Python 3.13 or newer.
 pip install lib_cli_exit_tools
 ```
 
-See [INSTALL.md](INSTALL.md) for editable installs, pipx/uv, package-manager builds, and troubleshooting tips.
+See [INSTALL.md](INSTALL.md) for editable installs, pipx/uv usage, and troubleshooting tips.
 
 ## Usage
 
@@ -39,9 +39,12 @@ lib_cli_exit_tools info
 lib_cli_exit_tools fail  # intentionally trigger RuntimeError to test error paths
 ```
 
-### Embed in your own CLI
+### Examples
 
-The `run_cli` helper wraps any Click command with lib_cli_exit_tools’ signal and error handling.
+The snippets below move from a minimal “hello world” through a production-ready
+CLI that demonstrates configuration hooks and structured error handling.
+
+#### 1. Minimal command (copy-paste ready)
 
 ```python
 from __future__ import annotations
@@ -53,14 +56,12 @@ from lib_cli_exit_tools import run_cli
 
 @click.command()
 def hello() -> None:
-    """Minimal Click command with automatic signal-aware exit handling."""
+    """Say hello with automatic signal-aware exit handling."""
 
     click.echo("Hello from lib_cli_exit_tools!")
 
 
 if __name__ == "__main__":
-    # run_cli handles SIGINT/SIGTERM/SIGBREAK, Click exceptions, and converts
-    # any other exception into an appropriate exit code.
     raise SystemExit(run_cli(hello))
 ```
 
@@ -69,6 +70,165 @@ Run it with:
 ```bash
 python hello.py
 ```
+
+#### 2. Verbose-mode helper using `cli_session`
+
+```python
+from __future__ import annotations
+
+import click
+
+from lib_cli_exit_tools import cli_session, run_cli
+
+
+@click.command()
+@click.option("--verbose", is_flag=True, help="Show full tracebacks on error")
+def cli(verbose: bool) -> int:
+    with cli_session(overrides={"traceback": verbose}) as execute:
+        return execute(failable, argv=[])
+
+
+@click.command()
+def failable() -> None:
+    raise RuntimeError("toggle --verbose to see the full traceback")
+
+
+if __name__ == "__main__":
+    raise SystemExit(run_cli(cli))
+```
+
+Invoking `python cli.py --verbose` enables coloured tracebacks just for that
+run and resets the configuration afterwards.
+
+#### 3. Full-featured multi-command CLI
+
+```python
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+
+import click
+
+from lib_cli_exit_tools import SignalSpec, cli_session, default_signal_specs
+
+
+@dataclass(slots=True)
+class Settings:
+    pretty: bool
+    verbose: bool
+
+
+@click.group()
+@click.option("--pretty/--no-pretty", default=True)
+@click.option("--verbose", is_flag=True)
+@click.pass_context
+def cli(ctx: click.Context, pretty: bool, verbose: bool) -> None:
+    ctx.obj = Settings(pretty=pretty, verbose=verbose)
+
+
+@cli.command()
+@click.pass_obj
+def info(settings: Settings) -> None:
+    payload = {"verbose": settings.verbose, "pretty": settings.pretty}
+    click.echo(json.dumps(payload, indent=2 if settings.pretty else None))
+
+
+@cli.command()
+@click.pass_obj
+def fail(settings: Settings) -> None:
+    click.echo("About to fail…")
+    raise RuntimeError("intentional failure for diagnostics")
+
+
+def main() -> int:
+    overrides = {"traceback": True, "traceback_force_color": True}
+    signals: list[SignalSpec] = default_signal_specs()
+    with cli_session(overrides=overrides) as execute:
+        return execute(cli, signal_specs=signals)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+```
+
+This version wires configuration overrides, custom signal specs, and multiple
+commands into a single composition point—mirroring how a production CLI can
+layer policy logic around Click while still delegating exit-code translation to
+`lib_cli_exit_tools`.
+
+#### 4. Custom signal handlers
+
+`run_cli` accepts an explicit `signal_spec` sequence and a `signal_installer`
+hook so you can provide bespoke behaviour. The example below installs a custom
+SIGUSR1 handler alongside the library defaults:
+
+```python
+from __future__ import annotations
+
+import signal
+from contextlib import ExitStack
+from typing import Callable
+
+import click
+
+from lib_cli_exit_tools import SignalSpec, default_signal_specs, run_cli
+
+
+CUSTOM_SIG = getattr(signal, "SIGUSR1", None)
+
+
+def custom_signal_specs() -> list[SignalSpec]:
+    specs = default_signal_specs()
+    if CUSTOM_SIG is not None:
+        specs.append(
+            SignalSpec(
+                signum=CUSTOM_SIG,
+                exception=RuntimeError,
+                message="Received SIGUSR1",
+                exit_code=75,
+            )
+        )
+    return specs
+def install_custom_signals(specs: list[SignalSpec] | None) -> Callable[[], None]:
+    stack = ExitStack()
+
+    for spec in specs or []:
+        def _handler(signum: int, frame: object | None, *, spec: SignalSpec = spec) -> None:
+            raise spec.exception(f"Signal {spec.message}")
+
+        try:
+            previous = signal.getsignal(spec.signum)
+            signal.signal(spec.signum, _handler)
+        except OSError:
+            continue
+        stack.callback(signal.signal, spec.signum, previous)
+
+    return stack.close
+
+
+@click.command()
+def main() -> None:
+    click.echo("Send SIGUSR1 to trigger the custom handler...")
+    if hasattr(signal, "pause"):
+        signal.pause()
+
+
+if __name__ == "__main__":
+    custom_specs = custom_signal_specs()
+    raise SystemExit(
+        run_cli(
+            main,
+            signal_specs=custom_specs,
+            signal_installer=install_custom_signals,
+        )
+    )
+```
+
+The `signal_installer` callable receives the resolved `SignalSpec` list and
+must return a zero-argument restorer. In this case, the helper installs handlers
+via `ExitStack`, raising the specified exception whenever the signal fires and
+restoring the previous handlers once `run_cli` completes.
 
 Library:
 
@@ -141,6 +301,32 @@ Afterwards, execute the consolidated quality gate:
 make test
 ```
 
+Need to run coverage manually without the helper? Use the new convenience target so
+you never depend on a platform-specific `coverage` shim:
+
+```bash
+make coverage
+```
+
+Which internally delegates to the scripts toolbox:
+
+```bash
+python -m scripts coverage
+```
+
+The target expands to `python -m coverage run -m pytest -vv` and therefore works
+even when the `coverage` console script is not available on your PATH. The helper
+also sets `COVERAGE_NO_SQL=1` ahead of each run so coverage falls back to the
+file-based data format instead of SQLite, avoiding "database is locked" errors
+on shared workstations.
+
+Prefer the automation CLI when you need to tweak options without editing the
+Makefile:
+
+```bash
+python -m scripts.test --coverage=off --verbose
+```
+
 The suite includes OS-aware cases (POSIX, Windows-specific signal handling), so
 run it on each target platform you support to keep coverage consistent.
 
@@ -165,12 +351,30 @@ Wrap a Click command or group so every invocation shares the same signal handlin
 
 Parameters:
 - `cli`: `click.BaseCommand` to execute.
-- `argv`: Optional iterable of CLI arguments (excluding program name).
+- `argv`: Iterable of CLI arguments (excluding the program name) or `None` to defer to Click's defaults.
 - `prog_name`: Override the program name shown in help/version output.
 - `signal_specs`: Iterable of `SignalSpec` objects to customise signal handling; defaults to `default_signal_specs()`.
 - `install_signals`: Set `False` when the host application already manages signal handlers.
-- `exception_handler`: Optional callable receiving the raised exception and returning an exit code; defaults to ``handle_cli_exception``.
-- `signal_installer`: Optional callable mirroring ``install_signal_handlers`` for embedding scenarios.
+- `exception_handler`: Callable receiving the raised exception and returning an exit code; defaults to ``handle_cli_exception``.
+- `signal_installer`: Callable mirroring ``install_signal_handlers`` for embedding scenarios.
+
+### `cli_session(*, summary_limit=500, verbose_limit=10_000, overrides=None)`
+Context manager that snapshots :mod:`lib_cli_exit_tools.config`, optionally
+applies temporary overrides, and yields a callable compatible with
+``run_cli``.
+
+Parameters:
+- `summary_limit`: Character budget when tracebacks are disabled.
+- `verbose_limit`: Character budget when tracebacks are enabled.
+- `overrides`: Mapping of configuration field/value pairs applied during the session.
+
+Use it to restore configuration automatically—even when the wrapped command
+raises:
+
+```python
+with cli_session(overrides={"traceback": True}) as run:
+    exit_code = run(click_command, argv=args)
+```
 
 ### `handle_cli_exception(exc, *, signal_specs=None, echo=None) -> int`
 Translate exceptions raised by Click commands into deterministic exit codes, honouring configured signal mappings and traceback policy.
@@ -263,7 +467,7 @@ A multi-command Click CLI can reuse the same configuration object and expose cus
 # src/your_package/cli.py
 from __future__ import annotations
 
-from typing import Optional, Sequence
+from typing import Sequence
 
 import click
 import lib_cli_exit_tools
@@ -313,7 +517,7 @@ def cli_fail() -> None:
     _fail()
 
 
-def main(argv: Optional[Sequence[str]] = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     """Entrypoint returning an exit code via shared run_cli helper."""
     return lib_cli_exit_tools.run_cli(
         cli,
@@ -337,6 +541,12 @@ When installed, the generated console scripts (`lib_cli_exit_tools`, `cli-exit-t
 ### Sysexits mode (optional)
 - Set `config.exit_code_style = "sysexits"` to map ValueError/TypeError → EX_USAGE(64),
   FileNotFoundError → EX_NOINPUT(66), PermissionError → EX_NOPERM(77), generic OSError → EX_IOERR(74).
+
+## Modern Python Toolchain
+
+- Targets Python 3.13+ exclusively—no runtime shims or compatibility branches remain.
+- Development extras track the latest stable releases published on PyPI so quality gates match local and CI environments.
+- GitHub Actions workflows rely on the current major releases of `actions/checkout`, `actions/setup-python`, and `astral-sh/setup-uv`, aligning the automation stack with the 2025 runner images.
 
 ## Additional Documentation
 

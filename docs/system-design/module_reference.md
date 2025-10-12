@@ -20,12 +20,12 @@ Complete
 * `src/lib_cli_exit_tools/application/runner.py`
 * `src/lib_cli_exit_tools/cli.py`
 * `src/lib_cli_exit_tools/__main__.py`
-* `tests/core/test_exit_code_poetry.py`
-* `tests/application/test_runner_poetry.py`
-* `tests/application/test_signal_poetry_posix.py`
-* `tests/application/test_signal_poetry_windows.py`
-* `tests/adapters/test_signals_poetry.py`
-* `tests/cli/test_cli_poetry.py`
+* `tests/test_behaviors.py`
+* `tests/test_cli.py`
+* `tests/test_metadata.py`
+* `tests/test_module_entry.py`
+* `tests/test_scripts.py`
+* `tests/test_signals_integration.py`
 
 ---
 
@@ -38,7 +38,7 @@ Downstream CLIs and automation pipelines need deterministic exit codes, signal h
 * Split runtime responsibilities into well-documented modules (`core`, `application`, `adapters`, `cli`) that mirror clean-architecture prompts.
 * Provide a lightweight metadata façade (`__init__conf__.py`) so CLI commands expose provenance without heavy packaging dependencies.
 * Funnel all exit handling through `application.runner` and `core.exit_codes`, documenting each resolver path and configuration hook.
-* Publish poetry-style, environment-aware tests that read like specifications and explicitly cover POSIX and Windows signal behaviours.
+* Publish behaviour-driven tests that read like specifications and explicitly cover CLI surfaces, metadata fallbacks, module entry balance, and automation scripts.
 * Align system documentation with inline docstrings and testing strategy to create a single source of truth for maintainers.
 
 ---
@@ -162,8 +162,8 @@ Downstream CLIs and automation pipelines need deterministic exit codes, signal h
 **Automated Tests:**
 
 * `python3 -m scripts test --coverage on` executes Ruff, import-linter, Pyright, Bandit, pip-audit, and pytest with coverage upload.
-* Unit/property tests: `tests/core/test_exit_code_poetry.py`, `tests/application/test_runner_poetry.py`, `tests/adapters/test_signals_poetry.py`.
-* Integration tests: `tests/application/test_signal_poetry_posix.py` (POSIX SIGINT), `tests/application/test_signal_poetry_windows.py` (Windows SIGBREAK), CLI smoke tests in `tests/cli/test_cli_poetry.py`.
+* Behaviour tests: `tests/test_behaviors.py`, `tests/test_cli.py`, `tests/test_metadata.py`.
+* Integration tests: `tests/test_module_entry.py` verifies parity between `python -m` and console scripts; `tests/test_scripts.py` exercises automation entry points; `tests/test_signals_integration.py` drives live subprocesses with SIGINT/CTRL+BREAK to assert exit-code translation.
 * Environment markers ensure OS-specific tests are skipped only when unsupported; CI matrix (Ubuntu/macOS/Windows) exercises each path.
 
 **Edge Cases:**
@@ -174,7 +174,7 @@ Downstream CLIs and automation pipelines need deterministic exit codes, signal h
 
 **Test Data:**
 
-* Poetry-style tests embed inline data; property-based tests rely on Hypothesis strategies (integers across wide ranges).
+* Hypothesis-based property tests in `tests/test_core_exit_codes.py` sweep exit-code mappings across diverse payloads; deterministic specs embed inline data where scenarios are finite.
 
 ---
 

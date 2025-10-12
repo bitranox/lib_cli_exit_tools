@@ -6,7 +6,7 @@ This document collects every supported installation path for `lib_cli_exit_tools
 pip install lib_cli_exit_tools
 ```
 
-The sections below cover more specialised workflows, from editable installs to package-manager builds.
+The sections below cover more specialised workflows, from editable installs to alternate Python tooling.
 
 ## Table of Contents
 - [Supported Python Versions](#supported-python-versions)
@@ -19,8 +19,6 @@ The sections below cover more specialised workflows, from editable installs to p
   - [Installing from local artifacts](#installing-from-local-artifacts)
   - [Poetry / PDM](#poetry--pdm)
   - [Install directly from Git](#install-directly-from-git)
-  - [Conda / Mamba environments](#conda--mamba-environments)
-  - [System package managers](#system-package-managers)
 - [Path configuration](#path-configuration)
 - [Troubleshooting](#troubleshooting)
   - [PEP 668 “externally managed environment” errors](#pep-668-externally-managed-environment-errors)
@@ -122,25 +120,7 @@ CI systems or early adopters can install from a specific revision:
 pip install "git+https://github.com/bitranox/lib_cli_exit_tools@vX.Y.Z#egg=lib_cli_exit_tools"
 ```
 
-### Conda / Mamba environments
-
-Create a dedicated Conda environment and install via `pip` inside it:
-
-```bash
-mamba create -n cli-exit python=3.13 pip
-mamba activate cli-exit
-pip install lib_cli_exit_tools
-```
-
-### System package managers
-
-Packages may be published for platform-native installers:
-
-- **Homebrew (macOS):** `brew install lib_cli_exit_tools`
-- **Nix:** `nix run github:bitranox/lib_cli_exit_tools` or `nix develop` with the provided flake
-- **Deb/RPM:** build with `fpm` using the project’s `packaging/` scripts
-
-Check the repository’s release notes for the current distribution status.
+We distribute via PyPI only. If you prefer isolated CLI installs, use tools such as `pipx` or `uv tool install` with the published wheel/sdist. Third-party packaging recipes (Conda, Homebrew, Nix) have been removed.
 
 ## Path configuration
 
@@ -169,7 +149,7 @@ error: externally-managed-environment
 
 **Fix:**
 - Create a virtual environment (`python -m venv .venv`) and install inside it, or
-- Use `pipx`, `conda`, `uv`, or another isolated environment manager.
+- Use `pipx`, `uv`, or another isolated environment manager.
 
 ### Missing command on PATH
 
@@ -180,5 +160,3 @@ If `lib_cli_exit_tools --help` returns “command not found”, confirm that the
 Set `lib_cli_exit_tools.config.traceback_force_color = True` in your application to force Rich to emit coloured tracebacks even when stderr is not detected as a TTY. Alternatively, export `RICH_FORCE_TERMINAL=1` before running the CLI.
 
 ---
-
-For additional environment automation (Conda, Nix, Homebrew formulas), consult the scripts under `packaging/` and the Makefile targets described in `README.md`.

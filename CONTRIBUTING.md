@@ -21,22 +21,11 @@ Thanks for helping improve lib_cli_exit_tools! This guide keeps changes small, s
 - Honour the documented system prompts: small functions, type hints throughout, and doctests that explain intent.
 - No sweeping refactors in unrelated modules; keep pull requests reviewable.
 
-## 4) Build & Packaging
+## 4) Build & Release
 
-### Packaging Sync (Conda/Brew/Nix)
-
-- Sync is automatic on common workflows:
-  - `make test` and `make push` run a sync step that aligns packaging files under `packaging/` with `pyproject.toml`.
-  - `make bump` also updates packaging files when bumping the version.
-- What gets synced from `pyproject.toml`:
-  - Version and minimum Python (`requires-python`).
-  - Runtime dependencies (from `[project].dependencies`).
-    - Conda: rewrites `requirements: run` with `python >=X.Y` plus all deps (exact `==` pins kept; ranges copied as-is).
-    - Homebrew: ensures a `resource "<dep>"` for each dep; if pinned, uses that version; otherwise pins to the latest PyPI release, updating `url` + `sha256`.
-    - Nix: updates the package version, `pkgs.pythonXYZPackages`/`pkgs.pythonXYZ` to match the min Python, and `propagatedBuildInputs` to include all deps as `pypkgs.<name>`.
-- Network note: Homebrew resource updates fetch PyPI metadata; if offline, those updates may be skipped.
-- If packaging drifts, run: `python scripts/bump_version.py --sync-packaging`.
-- CI enforces consistency on tags via a `packaging-consistency` job.
+- `make build` produces the wheel/sdist that CI later uploads to PyPI.
+- `make release` tags the repository and runs the release helper (publishes to PyPI when `PYPI_API_TOKEN` is configured).
+- Third-party packaging targets (Conda, Homebrew, Nix) are no longer maintained.
 
 ## 5) Tests & Style
 

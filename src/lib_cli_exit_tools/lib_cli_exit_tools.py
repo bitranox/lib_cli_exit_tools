@@ -31,6 +31,7 @@ from .adapters.signals import (
     install_signal_handlers,
 )
 from .application.runner import (
+    cli_session,
     flush_streams,
     handle_cli_exception,
     print_exception_message,
@@ -53,6 +54,7 @@ __all__ = [
     "install_signal_handlers",
     "handle_cli_exception",
     "i_should_fail",
+    "cli_session",
     "run_cli",
     "config_overrides",
     "reset_config",

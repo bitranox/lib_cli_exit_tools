@@ -1,41 +1,36 @@
 from __future__ import annotations
 
+import json
 import os
 import platform
 import shutil
 import subprocess
 import sys
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
 from types import ModuleType
-from typing import Callable
+from typing import cast
 
 import click
 
-try:
-    from ._utils import (
-        RunResult,
-        bootstrap_dev,
-        get_project_metadata,
-        run,
-        sync_packaging,
-    )
-except ImportError:  # pragma: no cover - direct execution fallback
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from scripts._utils import (
-        RunResult,
-        bootstrap_dev,
-        get_project_metadata,
-        run,
-        sync_packaging,
-    )
+from ._utils import (
+    RunResult,
+    bootstrap_dev,
+    get_project_metadata,
+    run,
+)
 
 PROJECT = get_project_metadata()
 COVERAGE_TARGET = PROJECT.coverage_source
-__all__ = ["run_tests", "COVERAGE_TARGET"]
+__all__ = ["run_tests", "run_coverage", "COVERAGE_TARGET"]
+PACKAGE_SRC = Path("src") / PROJECT.import_package
 _toml_module: ModuleType | None = None
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 _TRUTHY = {"1", "true", "yes", "on"}
+_FALSY = {"0", "false", "no", "off"}
+_DEFAULT_PIP_AUDIT_IGNORES = ("GHSA-4xh5-x5gv-qwph",)
+_AuditPayload = list[dict[str, object]]
 
 
 def _build_default_env() -> dict[str, str]:
@@ -53,13 +48,73 @@ def _refresh_default_env() -> None:
     _default_env = _build_default_env()
 
 
-def run_tests(
-    *,
-    coverage: str = "on",
-    verbose: bool = False,
-    strict_format: bool | None = None,
-    skip_packaging_sync: bool | None = None,
-) -> None:
+def run_coverage(*, verbose: bool = False) -> None:
+    """Run pytest under coverage using python modules to avoid PATH shim issues."""
+
+    bootstrap_dev()
+    _prune_coverage_data_files()
+    _remove_report_artifacts()
+    base_env = _build_default_env() | {"COVERAGE_NO_SQL": "1"}
+    with tempfile.TemporaryDirectory() as tmpdir:
+        coverage_file = Path(tmpdir) / ".coverage"
+        env = base_env | {"COVERAGE_FILE": str(coverage_file)}
+        coverage_cmd = [sys.executable, "-m", "coverage", "run", "-m", "pytest", "-vv"]
+        click.echo("[coverage] python -m coverage run -m pytest -vv")
+        result = run(coverage_cmd, env=env, capture=not verbose, check=False)
+        if result.code != 0:
+            if result.out:
+                click.echo(result.out, nl=False)
+            if result.err:
+                click.echo(result.err, err=True, nl=False)
+            raise SystemExit(result.code)
+
+        report_cmd = [sys.executable, "-m", "coverage", "report", "-m"]
+        click.echo("[coverage] python -m coverage report -m")
+        report = run(report_cmd, env=env, capture=not verbose, check=False)
+        if report.code != 0:
+            if report.out:
+                click.echo(report.out, nl=False)
+            if report.err:
+                click.echo(report.err, err=True, nl=False)
+            raise SystemExit(report.code)
+        if report.out and not verbose:
+            click.echo(report.out, nl=False)
+
+
+def _resolve_pip_audit_ignores() -> list[str]:
+    """Return consolidated list of vulnerability IDs to ignore during pip-audit."""
+
+    extra = [token.strip() for token in os.getenv("PIP_AUDIT_IGNORE", "").split(",") if token.strip()]
+    ignores: list[str] = []
+    for candidate in (*_DEFAULT_PIP_AUDIT_IGNORES, *extra):
+        if candidate and candidate not in ignores:
+            ignores.append(candidate)
+    return ignores
+
+
+def _extract_audit_dependencies(payload: object) -> _AuditPayload:
+    """Normalise `pip-audit --format json` output into dictionaries."""
+
+    dependencies: _AuditPayload = []
+    candidate_iter: list[object] = []
+    if isinstance(payload, dict):
+        payload_dict = cast(dict[str, object], payload)
+        raw_candidates = payload_dict.get("dependencies", [])
+        if isinstance(raw_candidates, list):
+            candidate_iter = list(cast(list[object], raw_candidates))
+    elif isinstance(payload, list):  # pragma: no cover - legacy output
+        candidate_iter = list(cast(list[object], payload))
+    else:  # pragma: no cover - defensive
+        return dependencies
+
+    for candidate in candidate_iter:
+        if isinstance(candidate, dict):
+            dependencies.append(cast(dict[str, object], candidate))
+
+    return dependencies
+
+
+def run_tests(*, coverage: str = "on", verbose: bool = False, strict_format: bool | None = None) -> None:
     env_verbose = os.getenv("TEST_VERBOSE", "").lower()
     if not verbose and env_verbose in _TRUTHY:
         verbose = True
@@ -83,9 +138,22 @@ def run_tests(
                     env_view = " ".join(f"{k}={v}" for k, v in overrides.items())
                     click.echo(f"    env {env_view}")
         merged_env = _default_env if env is None else _default_env | env
-        result = run(cmd, env=merged_env, check=check, capture=capture)  # type: ignore[arg-type]
+        result = run(cmd, env=merged_env, check=False, capture=capture)  # type: ignore[arg-type]
         if verbose and label:
             click.echo(f"    -> {label}: exit={result.code} out={bool(result.out)} err={bool(result.err)}")
+
+        if capture and (verbose or result.code != 0):
+            if result.out:
+                click.echo(result.out, nl=False)
+                if not result.out.endswith("\n"):
+                    click.echo()
+            if result.err:
+                click.echo(result.err, err=True, nl=False)
+                if not result.err.endswith("\n"):
+                    click.echo(err=True)
+
+        if check and result.code != 0:
+            raise SystemExit(result.code)
 
         return result
 
@@ -95,122 +163,133 @@ def run_tests(
 
         return _runner
 
-    bootstrap_dev()
+    def _pip_audit_guarded() -> None:
+        ignore_ids = _resolve_pip_audit_ignores()
+        audit_cmd = ["pip-audit", "--skip-editable"]
+        for vuln_id in ignore_ids:
+            audit_cmd.extend(["--ignore-vuln", vuln_id])
+        _run(audit_cmd, label="pip-audit-ignore", capture=False)
 
-    if skip_packaging_sync is not None:
-        resolved_skip_packaging = skip_packaging_sync
-    else:
-        enforce_sync = os.getenv("ENFORCE_PACKAGING_SYNC", "0").strip().lower() in _TRUTHY
-        skip_via_env = os.getenv("SKIP_PACKAGING_SYNC", "0").strip().lower() in _TRUTHY
-        running_in_ci = os.getenv("CI", "").strip() != ""
-        if enforce_sync:
-            resolved_skip_packaging = False
-        elif skip_via_env:
-            resolved_skip_packaging = True
-        elif running_in_ci:
-            resolved_skip_packaging = False
-        else:
-            resolved_skip_packaging = True
-    resolved_security_skip = os.getenv("SKIP_SECURITY_SCANS", "0").strip().lower() in _TRUTHY
+        result = _run(
+            [
+                "pip-audit",
+                "--skip-editable",
+                "--format",
+                "json",
+            ],
+            label="pip-audit-verify",
+            capture=True,
+            check=False,
+        )
+
+        if result.code == 0:
+            return
+
+        try:
+            payload = json.loads(result.out or "{}")
+        except json.JSONDecodeError as exc:  # pragma: no cover - audit emitted non-JSON output
+            click.echo("pip-audit verification output was not valid JSON", err=True)
+            raise SystemExit("pip-audit verification failed") from exc
+
+        dependencies = _extract_audit_dependencies(payload)
+        allowed_vulns = set(ignore_ids)
+        unexpected: list[str] = []
+        for item in dependencies:
+            name_candidate = item.get("name")
+            package = name_candidate if isinstance(name_candidate, str) else "<unknown>"
+            vulns_candidate = item.get("vulns", [])
+            if not isinstance(vulns_candidate, list):
+                continue
+            vuln_objects = list(cast(list[object], vulns_candidate))
+            vuln_entries = [cast(dict[str, object], entry) for entry in vuln_objects if isinstance(entry, dict)]
+            for vuln_payload in vuln_entries:
+                vuln_id_candidate = vuln_payload.get("id")
+                if not isinstance(vuln_id_candidate, str):
+                    continue
+                if vuln_id_candidate not in allowed_vulns:
+                    unexpected.append(f"{package}: {vuln_id_candidate}")
+
+        if unexpected:
+            click.echo("pip-audit reported new vulnerabilities:", err=True)
+            for entry in unexpected:
+                click.echo(f"  - {entry}", err=True)
+            raise SystemExit("Resolve the reported vulnerabilities before continuing.")
+
+    bootstrap_dev()
 
     steps: list[tuple[str, Callable[[], None]]] = []
 
-    def _sync_packaging() -> None:
-        try:
-            pre_status = subprocess.run(
-                ["git", "status", "--porcelain", "packaging"],
-                cwd=PROJECT_ROOT,
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-        except Exception as exc:  # pragma: no cover - git unavailable
-            raise SystemExit(f"Packaging sync verification failed: {exc}") from exc
-
-        if pre_status.returncode != 0:
-            raise SystemExit("git status failed while inspecting packaging drift")
-
-        pre_output = pre_status.stdout.splitlines()
-
-        sync_packaging()
-
-        try:
-            post_status = subprocess.run(
-                ["git", "status", "--porcelain", "packaging"],
-                cwd=PROJECT_ROOT,
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-        except Exception as exc:  # pragma: no cover - git unavailable
-            raise SystemExit(f"Packaging sync verification failed: {exc}") from exc
-
-        if post_status.returncode != 0:
-            raise SystemExit("git status failed while verifying packaging sync changes")
-
-        post_output = post_status.stdout.splitlines()
-
-        if pre_output != post_output:
-            diff = "\n".join(post_output)
-            if diff:
-                click.echo(diff, err=True)
-            raise SystemExit("Packaging files drifted from pyproject.toml. Run scripts/bump_version.py --sync-packaging and commit the updates.")
-
-    if resolved_skip_packaging:
-        click.echo("[skip] Packaging sync skipped (run with ENFORCE_PACKAGING_SYNC=1 or inside CI to enable)")
+    if strict_format is not None:
+        resolved_format_strict = strict_format
     else:
-        steps.append(("Sync packaging (conda/brew/nix) with pyproject", _sync_packaging))
+        env_value = os.getenv("STRICT_RUFF_FORMAT")
+        if env_value is None:
+            resolved_format_strict = True
+        else:
+            token = env_value.strip().lower()
+            if token in _TRUTHY:
+                resolved_format_strict = True
+            elif token in _FALSY or token == "":
+                resolved_format_strict = False
+            else:
+                raise SystemExit("STRICT_RUFF_FORMAT must be one of {0,1,true,false,yes,no,on,off}.")
 
-    resolved_format_strict = strict_format if strict_format is not None else os.getenv("STRICT_RUFF_FORMAT", "0").strip().lower() in _TRUTHY
+    steps.append(
+        (
+            "Ruff format (apply)",
+            _wrap(cmd=["ruff", "format", "."], label="ruff-format-apply", capture=False),
+        )
+    )
+
+    if resolved_format_strict:
+        steps.append(
+            (
+                "Ruff format check",
+                _wrap(cmd=["ruff", "format", "--check", "."], label="ruff-format-check", capture=False),
+            )
+        )
+
+    steps.append(
+        (
+            "Ruff lint",
+            _wrap(cmd=["ruff", "check", "."], label="ruff-check", capture=False),
+        )
+    )
+
+    steps.append(
+        (
+            "Import-linter contracts",
+            _wrap(
+                cmd=[sys.executable, "-m", "importlinter.cli", "lint", "--config", "pyproject.toml"],
+                label="import-linter",
+                capture=False,
+            ),
+        )
+    )
+
+    steps.append(
+        (
+            "Pyright type-check",
+            _wrap(cmd=["pyright"], label="pyright", capture=False),
+        )
+    )
 
     steps.extend(
         [
             (
-                "Ruff lint",
-                _wrap(cmd=["ruff", "check", "."], label="ruff-check", capture=False),
-            ),
-            (
-                "Ruff format check" if resolved_format_strict else "Ruff format (apply)",
+                "Bandit security scan",
                 _wrap(
-                    cmd=["ruff", "format", "--check", "."] if resolved_format_strict else ["ruff", "format", "."],
-                    label="ruff-format",
-                    capture=True,
-                ),
-            ),
-            (
-                "Import-linter contracts",
-                _wrap(
-                    cmd=[sys.executable, "-m", "importlinter.cli", "lint", "--config", "pyproject.toml"],
-                    label="import-linter",
+                    cmd=["bandit", "-q", "-r", str(PACKAGE_SRC)],
+                    label="bandit",
                     capture=False,
                 ),
             ),
             (
-                "Pyright type-check",
-                _wrap(cmd=["pyright"], label="pyright", capture=False),
+                "pip-audit (guarded)",
+                _pip_audit_guarded,
             ),
         ]
     )
-
-    if resolved_security_skip:
-        click.echo("[skip] Security scans disabled (set SKIP_SECURITY_SCANS=1 to opt out)")
-    else:
-        steps.extend(
-            [
-                (
-                    "Bandit security scan",
-                    _wrap(cmd=["bandit", "-q", "-r", "src/lib_cli_exit_tools"], label="bandit", capture=False),
-                ),
-                (
-                    "pip-audit dependency scan",
-                    _wrap(
-                        cmd=["pip-audit", "--progress-spinner", "off", "--skip-editable", "--ignore-vuln", "GHSA-4xh5-x5gv-qwph"],
-                        label="pip-audit",
-                        capture=False,
-                    ),
-                ),
-            ]
-        )
 
     def _run_pytest() -> None:
         for f in (".coverage", "coverage.xml"):
@@ -225,7 +304,7 @@ def run_tests(
             with tempfile.TemporaryDirectory() as tmp:
                 cov_file = Path(tmp) / ".coverage"
                 click.echo(f"[coverage] file={cov_file}")
-                env = os.environ | {"COVERAGE_FILE": str(cov_file)}
+                env = os.environ | {"COVERAGE_FILE": str(cov_file), "COVERAGE_NO_SQL": "1"}
                 pytest_result = _run(
                     [
                         "python",
@@ -320,6 +399,10 @@ def _upload_coverage_report(*, run_command: Callable[..., RunResult]) -> bool:
         return False
 
     branch = _resolve_git_branch()
+    git_service = _resolve_git_service()
+    slug = None
+    if PROJECT.repo_owner and PROJECT.repo_name:
+        slug = f"{PROJECT.repo_owner}/{PROJECT.repo_name}"
     label = "codecov-upload"
     args = [
         uploader,
@@ -337,8 +420,14 @@ def _upload_coverage_report(*, run_command: Callable[..., RunResult]) -> bool:
     ]
     if branch:
         args.extend(["--branch", branch])
+    if git_service:
+        args.extend(["--git-service", git_service])
+    if slug:
+        args.extend(["--slug", slug])
 
     env_overrides = {"CODECOV_NO_COMBINE": "1"}
+    if slug:
+        env_overrides.setdefault("CODECOV_SLUG", slug)
     result = run_command(args, env=env_overrides, check=False, capture=False, label=label)
     if result.code == 0:
         click.echo("[codecov] upload succeeded")
@@ -382,6 +471,16 @@ def _resolve_git_branch() -> str | None:
     return candidate
 
 
+def _resolve_git_service() -> str | None:
+    host = (PROJECT.repo_host or "").lower()
+    mapping = {
+        "github.com": "github",
+        "gitlab.com": "gitlab",
+        "bitbucket.org": "bitbucket",
+    }
+    return mapping.get(host)
+
+
 def _ensure_codecov_token() -> None:
     if os.getenv("CODECOV_TOKEN"):
         _refresh_default_env()
@@ -417,6 +516,19 @@ def _prune_coverage_data_files() -> None:
             continue
         except OSError as exc:
             click.echo(f"[coverage] warning: unable to remove {path}: {exc}", err=True)
+
+
+def _remove_report_artifacts() -> None:
+    """Remove coverage reports that might lock the SQLite database on reruns."""
+
+    for name in ("coverage.xml", "codecov.xml"):
+        artifact = Path(name)
+        try:
+            artifact.unlink()
+        except FileNotFoundError:
+            continue
+        except OSError as exc:
+            click.echo(f"[coverage] warning: unable to remove {artifact}: {exc}", err=True)
 
 
 def main() -> None:
