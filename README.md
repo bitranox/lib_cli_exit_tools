@@ -555,4 +555,5 @@ When installed, the generated console scripts (`lib_cli_exit_tools`, `cli-exit-t
 - [CONTRIBUTING](CONTRIBUTING.md)
 - [DEVELOPMENT](DEVELOPMENT.md)
 - [MODULE REFERENCE](docs/system-design/module_reference.md)
+- [AGENTS_README](AGENTS_README.md)
 - [LICENSE](LICENSE)
