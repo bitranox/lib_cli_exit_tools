@@ -118,10 +118,10 @@ keep the signal-handling guarantees honest.
 
 ## Versioning & Metadata
 
-- Single source of truth for package metadata is `pyproject.toml` (`[project]`).
-- The library reads its own installed metadata at runtime via `importlib.metadata` (see `src/lib_cli_exit_tools/__init__conf__.py`).
-- Do not duplicate the version in code; bump only `pyproject.toml` and update `CHANGELOG.md`.
-- Console script name is discovered from entry points; defaults to `lib_cli_exit_tools`.
+- `pyproject.toml` (`[project]`) remains the single source of truth for name, version, homepage, and authors.
+- `scripts._utils.sync_metadata_module()` rewrites `src/lib_cli_exit_tools/__init__conf__.py` so runtime code consumes generated constants instead of `importlib.metadata`.
+- After editing project metadata (name, version, description, URLs, authors), run `make test` or `python -m scripts.test` to regenerate the module before committing.
+- Console script name is still discovered from entry points; automation falls back to `lib_cli_exit_tools` when no explicit alias exists.
 
 ## CI & Publishing
 

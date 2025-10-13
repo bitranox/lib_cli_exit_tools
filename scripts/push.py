@@ -6,7 +6,13 @@ from pathlib import Path
 
 import rich_click as click
 
-from ._utils import get_project_metadata, git_branch, read_version_from_pyproject, run
+from ._utils import (
+    get_project_metadata,
+    git_branch,
+    read_version_from_pyproject,
+    run,
+    sync_metadata_module,
+)
 
 __all__ = ["push"]
 
@@ -15,6 +21,7 @@ def push(*, remote: str = "origin", message: str | None = None) -> None:
     """Run checks, commit changes, and push the current branch."""
 
     metadata = get_project_metadata()
+    sync_metadata_module(metadata)
     version = read_version_from_pyproject(Path("pyproject.toml")) or "unknown"
     click.echo("[push] project diagnostics: " + ", ".join(metadata.diagnostic_lines()))
     click.echo(f"[push] version={version}")

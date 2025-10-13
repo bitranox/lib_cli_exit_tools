@@ -7,7 +7,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from types import ModuleType
 from typing import cast
@@ -19,6 +19,7 @@ from ._utils import (
     bootstrap_dev,
     get_project_metadata,
     run,
+    sync_metadata_module,
 )
 
 PROJECT = get_project_metadata()
@@ -51,6 +52,7 @@ def _refresh_default_env() -> None:
 def run_coverage(*, verbose: bool = False) -> None:
     """Run pytest under coverage using python modules to avoid PATH shim issues."""
 
+    sync_metadata_module(PROJECT)
     bootstrap_dev()
     _prune_coverage_data_files()
     _remove_report_artifacts()
@@ -95,23 +97,16 @@ def _resolve_pip_audit_ignores() -> list[str]:
 def _extract_audit_dependencies(payload: object) -> _AuditPayload:
     """Normalise `pip-audit --format json` output into dictionaries."""
 
-    dependencies: _AuditPayload = []
-    candidate_iter: list[object] = []
-    if isinstance(payload, dict):
-        payload_dict = cast(dict[str, object], payload)
-        raw_candidates = payload_dict.get("dependencies", [])
-        if isinstance(raw_candidates, list):
-            candidate_iter = list(cast(list[object], raw_candidates))
-    elif isinstance(payload, list):  # pragma: no cover - legacy output
-        candidate_iter = list(cast(list[object], payload))
-    else:  # pragma: no cover - defensive
-        return dependencies
+    if not isinstance(payload, dict):
+        return []
 
-    for candidate in candidate_iter:
-        if isinstance(candidate, dict):
-            dependencies.append(cast(dict[str, object], candidate))
+    payload_dict = cast(dict[str, object], payload)
+    raw_candidates = payload_dict.get("dependencies", [])
+    if not isinstance(raw_candidates, list):
+        return []
 
-    return dependencies
+    candidate_list = cast(list[object], raw_candidates)
+    return [cast(dict[str, object], candidate) for candidate in candidate_list if isinstance(candidate, dict)]
 
 
 def run_tests(*, coverage: str = "on", verbose: bool = False, strict_format: bool | None = None) -> None:
@@ -119,8 +114,10 @@ def run_tests(*, coverage: str = "on", verbose: bool = False, strict_format: boo
     if not verbose and env_verbose in _TRUTHY:
         verbose = True
 
+    sync_metadata_module(PROJECT)
+
     def _run(
-        cmd: list[str] | str,
+        cmd: Sequence[str] | str,
         *,
         env: dict[str, str] | None = None,
         check: bool = True,
@@ -138,7 +135,7 @@ def run_tests(*, coverage: str = "on", verbose: bool = False, strict_format: boo
                     env_view = " ".join(f"{k}={v}" for k, v in overrides.items())
                     click.echo(f"    env {env_view}")
         merged_env = _default_env if env is None else _default_env | env
-        result = run(cmd, env=merged_env, check=False, capture=capture)  # type: ignore[arg-type]
+        result = run(cmd, env=merged_env, check=False, capture=capture)
         if verbose and label:
             click.echo(f"    -> {label}: exit={result.code} out={bool(result.out)} err={bool(result.err)}")
 
@@ -292,11 +289,8 @@ def run_tests(*, coverage: str = "on", verbose: bool = False, strict_format: boo
     )
 
     def _run_pytest() -> None:
-        for f in (".coverage", "coverage.xml"):
-            try:
-                Path(f).unlink()
-            except FileNotFoundError:
-                pass
+        for path in (Path(".coverage"), Path("coverage.xml")):
+            path.unlink(missing_ok=True)
 
         if coverage == "on" or (coverage == "auto" and (os.getenv("CI") or os.getenv("CODECOV_TOKEN"))):
             click.echo("[coverage] enabled")

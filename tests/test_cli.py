@@ -76,6 +76,18 @@ def test_when_info_is_invoked_metadata_is_displayed(cli_runner: CliRunner, strip
 
 
 @pytest.mark.os_agnostic
+def test_when_version_flag_is_used_metadata_banner_is_returned(
+    cli_runner: CliRunner,
+    strip_ansi: Callable[[str], str],
+) -> None:
+    result: Result = cli_runner.invoke(cli_mod.cli, ["--version"])
+    plain_output = strip_ansi(result.output).strip()
+
+    assert result.exit_code == 0
+    assert plain_output == f"{metadata.shell_command} version {metadata.version}"
+
+
+@pytest.mark.os_agnostic
 def test_when_fail_is_invoked_a_runtime_error_surfaces(cli_runner: CliRunner) -> None:
     result: Result = cli_runner.invoke(cli_mod.cli, ["fail"])
 

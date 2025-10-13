@@ -3,6 +3,13 @@
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [2.1.0] - 2025-10-13
+
+### Changed
+- `scripts.build` now calls `sync_metadata_module()` before invoking `python -m build`, ensuring wheels and sdists ship freshly generated metadata.
+- Added an explicit CLI test covering the `--version` flag so console-script aliases stay aligned with generated constants.
+- Updated README, INSTALL instructions, and the Quickstart notebook to document `lib-cli-exit-tools` as the canonical console entry point alongside its aliases.
+
 ## [2.0.0] - 2025-10-12
 
 ### Changed

@@ -38,7 +38,7 @@ Downstream CLIs and automation pipelines need deterministic exit codes, signal h
 * Split runtime responsibilities into well-documented modules (`core`, `application`, `adapters`, `cli`) that mirror clean-architecture prompts.
 * Provide a lightweight metadata façade (`__init__conf__.py`) so CLI commands expose provenance without heavy packaging dependencies.
 * Funnel all exit handling through `application.runner` and `core.exit_codes`, documenting each resolver path and configuration hook.
-* Publish behaviour-driven tests that read like specifications and explicitly cover CLI surfaces, metadata fallbacks, module entry balance, and automation scripts.
+* Publish behaviour-driven tests that read like specifications and explicitly cover CLI surfaces, metadata exports, module entry balance, and automation scripts.
 * Align system documentation with inline docstrings and testing strategy to create a single source of truth for maintainers.
 
 ---
@@ -56,7 +56,7 @@ Downstream CLIs and automation pipelines need deterministic exit codes, signal h
 5. `core.exit_codes` resolves exit codes via ordered strategies (subprocess return codes, signals, errno/winerror, sysexits, platform tables).
 6. `__init__conf__.py` supplies metadata for `info` commands and documentation output.
 
-**System Dependencies:** Standard library (`signal`, `sys`, `subprocess`, `importlib.metadata`, `contextlib`, `dataclasses`), `click`, `rich`, `rich-click`.
+**System Dependencies:** Standard library (`signal`, `sys`, `subprocess`, `contextlib`, `dataclasses`), `click`, `rich`, `rich-click`.
 
 ---
 
@@ -78,9 +78,9 @@ Downstream CLIs and automation pipelines need deterministic exit codes, signal h
 
 ### Module: lib_cli_exit_tools/__init__conf__.py
 
-* **Purpose:** Provide metadata helpers and `print_info()` for CLI provenance.
-* **Input:** Distribution metadata via `importlib.metadata`; fallback defaults.
-* **Output:** Constants (`name`, `title`, `version`, `homepage`, `author`, `shell_command`) and metadata helpers (`_meta`, `_version`, `_home_page`, `_author`, `_summary`).
+* **Purpose:** Publish static metadata constants and `print_info()` for CLI provenance.
+* **Input:** Generated from `pyproject.toml` by `scripts._utils.sync_metadata_module`; no runtime metadata lookups.
+* **Output:** Constants (`name`, `title`, `version`, `homepage`, `author`, `author_email`, `shell_command`) and the formatted `print_info()` helper.
 * **Location:** `src/lib_cli_exit_tools/__init__conf__.py`
 
 ### Module: lib_cli_exit_tools/core/configuration.py

@@ -29,14 +29,14 @@ See [INSTALL.md](INSTALL.md) for editable installs, pipx/uv usage, and troublesh
 
 ## Usage
 
-Console script:
+Console script (all commands map to ``lib_cli_exit_tools.cli:main``):
 
 ```bash
 # After install (pip/pipx/uv tool)
-lib_cli_exit_tools --help
-cli-exit-tools --help  # alias
-lib_cli_exit_tools info
-lib_cli_exit_tools fail  # intentionally trigger RuntimeError to test error paths
+lib-cli-exit-tools --help
+lib-cli-exit-tools info
+lib-cli-exit-tools fail  # intentionally trigger RuntimeError to test error paths
+# Aliases are also generated: `cli-exit-tools`, `lib_cli_exit_tools`
 ```
 
 ### Examples
@@ -244,9 +244,10 @@ except Exception as e:
     raise SystemExit(code)
 ```
 
-Command names registered on install
-- lib_cli_exit_tools (default)
+Command names registered on install (all invoke ``lib_cli_exit_tools.cli:main``)
+- lib-cli-exit-tools (default console script)
 - cli-exit-tools (alias)
+- lib_cli_exit_tools (alias)
 - python -m lib_cli_exit_tools (module entry)
 
 If you installed with --user or in a venv, make sure the corresponding bin directory is on PATH:
@@ -526,7 +527,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
 ```
 
-When installed, the generated console scripts (`lib_cli_exit_tools`, `cli-exit-tools`, `lib-cli-exit-tools`) will import `your_package.cli:main`, and `python -m your_package` will follow the same code path via `__main__.py`.
+When installed, the generated console scripts (`lib-cli-exit-tools`, `cli-exit-tools`, `lib_cli_exit_tools`) will import `your_package.cli:main`, and `python -m your_package` will follow the same code path via `__main__.py`.
 
 ## Exit Codes
 

@@ -85,7 +85,7 @@ pipx install "git+https://github.com/bitranox/lib_cli_exit_tools@vX.Y.Z"
 ```bash
 uv pip install -e .[dev]
 uv tool install lib_cli_exit_tools
-uvx lib_cli_exit_tools --help
+uvx lib-cli-exit-tools --help  # aliases: cli-exit-tools, lib_cli_exit_tools
 ```
 
 ### Installing from local artifacts
@@ -153,7 +153,7 @@ error: externally-managed-environment
 
 ### Missing command on PATH
 
-If `lib_cli_exit_tools --help` returns “command not found”, confirm that the installation location is on PATH. The most common fix is adding `~/.local/bin` (POSIX) or `%APPDATA%\Python\PythonXY\Scripts` (Windows) to your PATH environment variable, then re-opening the shell.
+If `lib-cli-exit-tools --help` (or the aliases `cli-exit-tools` / `lib_cli_exit_tools`) returns “command not found”, confirm that the installation location is on PATH. The most common fix is adding `~/.local/bin` (POSIX) or `%APPDATA%\Python\PythonXY\Scripts` (Windows) to your PATH environment variable, then re-opening the shell.
 
 ### Colour output not appearing
 

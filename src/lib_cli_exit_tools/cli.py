@@ -136,7 +136,7 @@ def _store_traceback_flag(ctx: click.Context, traceback: bool) -> None:
 
 @cli.command("info", context_settings=CLICK_CONTEXT_SETTINGS)
 def cli_info() -> None:
-    """Display package metadata sourced from :mod:`importlib.metadata`.
+    """Display package metadata exported by :mod:`lib_cli_exit_tools.__init__conf__`.
 
     Why:
         Offer a zero-dependency way for users to confirm the installed version
