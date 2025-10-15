@@ -70,6 +70,7 @@ exclude = [
 
 [tool.pytest.ini_options]
 addopts = ["--doctest-modules"]
+pythonpath = ["src"]
 doctest_optionflags = ["ELLIPSIS", "NORMALIZE_WHITESPACE"]
 markers = [
   "os_agnostic: test exercises behavior that is the same on every operating system",
