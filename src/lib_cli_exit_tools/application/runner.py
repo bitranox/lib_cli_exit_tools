@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import sys
 from contextlib import contextmanager, nullcontext, suppress
-from typing import Callable, ContextManager, Iterable, Iterator, Literal, Mapping, Protocol, Sequence, TextIO, cast
+from typing import Callable, ContextManager, Iterable, Iterator, Literal, Mapping, Protocol, Sequence, TextIO, TypedDict, cast
 
 import rich_click as click
 from rich_click import rich_click as rich_config
@@ -34,6 +34,24 @@ from ..core.exit_codes import get_system_exit_code
 
 RichColorSystem = Literal["auto", "standard", "256", "truecolor", "windows"]
 ExitResolver = Callable[[BaseException], int | None]
+
+# Configuration field name constants to ensure type-safe access
+# These correspond to fields in _Config dataclass (core/configuration.py)
+_CONFIG_TRACEBACK = "traceback"
+_CONFIG_TRACEBACK_FORCE_COLOR = "traceback_force_color"
+
+
+class SessionOverrides(TypedDict, total=False):
+    """Type-safe override mapping for cli_session configuration.
+
+    Fields match the _Config dataclass in core/configuration.py.
+    All fields are optional to support partial configuration.
+    """
+
+    traceback: bool
+    exit_code_style: Literal["errno", "sysexits"]
+    broken_pipe_exit_code: int
+    traceback_force_color: bool
 
 
 class ClickCommand(Protocol):
@@ -55,6 +73,7 @@ __all__ = [
     "flush_streams",
     "run_cli",
     "cli_session",
+    "SessionOverrides",
 ]
 
 
@@ -525,12 +544,23 @@ def cli_session(
         yield _run
 
 
-def _normalise_session_overrides(overrides: Mapping[str, object] | None) -> dict[str, object]:
-    """Prepare configuration overrides, forcing colour when verbose tracebacks are enabled."""
-    applied = dict(overrides or {})
-    if "traceback" in applied and "traceback_force_color" not in applied:
-        applied["traceback_force_color"] = bool(applied["traceback"])
-    return applied
+def _normalise_session_overrides(overrides: Mapping[str, object] | None) -> Mapping[str, object]:
+    """Prepare configuration overrides, forcing colour when verbose tracebacks are enabled.
+
+    Returns a Mapping instead of dict to avoid unnecessary conversions.
+    Uses typed constants for field names to ensure type safety.
+    """
+    if not overrides:
+        return {}
+
+    # If traceback is enabled but force_color is not set, add it
+    if _CONFIG_TRACEBACK in overrides and _CONFIG_TRACEBACK_FORCE_COLOR not in overrides:
+        # Need to create a new dict to add the extra field
+        result: dict[str, object] = {**overrides}
+        result[_CONFIG_TRACEBACK_FORCE_COLOR] = bool(overrides[_CONFIG_TRACEBACK])
+        return result
+
+    return overrides
 
 
 def _session_config_manager(applied: Mapping[str, object], restore: bool) -> ContextManager[object]:
@@ -544,7 +574,17 @@ def _session_config_manager(applied: Mapping[str, object], restore: bool) -> Con
 
 @contextmanager
 def _apply_overrides_without_restore(applied: Mapping[str, object]) -> Iterator[None]:
-    """Apply overrides without restoring prior state on exit."""
+    """Apply overrides without restoring prior state on exit.
+
+    Safety Note:
+        The setattr calls here are type-safe because all field names in ``applied``
+        have been validated by ``_reject_unknown_fields`` in configuration.py
+        (line 114) before reaching this function. The config_overrides context
+        manager ensures only valid _Config field names can be used.
+
+    Parameters:
+        applied: Validated mapping of configuration field names to values.
+    """
     for name, value in applied.items():
         setattr(config, name, value)
     yield

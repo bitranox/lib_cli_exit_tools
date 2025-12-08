@@ -23,9 +23,29 @@ from __future__ import annotations
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, fields
-from typing import Literal
+from typing import Literal, TypedDict
 
 __all__ = ["_Config", "config", "config_overrides", "reset_config"]
+
+
+class ConfigSnapshot(TypedDict):
+    """Type-safe snapshot of configuration values.
+
+    Why:
+        Provides compile-time safety when capturing and restoring configuration
+        state. Mirrors the _Config dataclass fields exactly to prevent typos
+        and ensure type consistency.
+    Fields:
+        traceback: Current traceback emission flag.
+        exit_code_style: Current exit code mapping strategy.
+        broken_pipe_exit_code: Current broken pipe exit code.
+        traceback_force_color: Current traceback color forcing flag.
+    """
+
+    traceback: bool
+    exit_code_style: Literal["errno", "sysexits"]
+    broken_pipe_exit_code: int
+    traceback_force_color: bool
 
 
 @dataclass(slots=True)
@@ -72,24 +92,36 @@ def _field_names() -> tuple[str, ...]:
     return tuple(field.name for field in fields(_Config))
 
 
-def _default_values() -> Mapping[str, object]:
-    """Return the canonical configuration defaults as a mapping."""
+def _default_values() -> ConfigSnapshot:
+    """Return the canonical configuration defaults as a type-safe snapshot."""
 
     defaults = _Config()
-    return {name: getattr(defaults, name) for name in _field_names()}
+    return ConfigSnapshot(
+        traceback=defaults.traceback,
+        exit_code_style=defaults.exit_code_style,
+        broken_pipe_exit_code=defaults.broken_pipe_exit_code,
+        traceback_force_color=defaults.traceback_force_color,
+    )
 
 
-def _snapshot_current_settings() -> dict[str, object]:
-    """Capture the current configuration values."""
+def _snapshot_current_settings() -> ConfigSnapshot:
+    """Capture the current configuration values as a type-safe snapshot."""
 
-    return {name: getattr(config, name) for name in _field_names()}
+    return ConfigSnapshot(
+        traceback=config.traceback,
+        exit_code_style=config.exit_code_style,
+        broken_pipe_exit_code=config.broken_pipe_exit_code,
+        traceback_force_color=config.traceback_force_color,
+    )
 
 
-def _restore_settings(snapshot: Mapping[str, object]) -> None:
-    """Bring :data:`config` back to the provided snapshot."""
+def _restore_settings(snapshot: ConfigSnapshot) -> None:
+    """Bring :data:`config` back to the provided type-safe snapshot."""
 
-    for name, value in snapshot.items():
-        setattr(config, name, value)
+    config.traceback = snapshot["traceback"]
+    config.exit_code_style = snapshot["exit_code_style"]
+    config.broken_pipe_exit_code = snapshot["broken_pipe_exit_code"]
+    config.traceback_force_color = snapshot["traceback_force_color"]
 
 
 def _reject_unknown_fields(overrides: Mapping[str, object]) -> None:

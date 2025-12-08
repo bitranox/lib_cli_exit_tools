@@ -3,6 +3,21 @@
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [2.1.1] - 2025-12-08
+
+### Changed
+- Enforced strict data architecture by introducing TypedDict classes (`RichClickSnapshot`, `CliContextState`, `ConfigSnapshot`, `SessionOverrides`) to eliminate raw dictionary access patterns.
+- Added `_is_posix_platform()` helper function to centralise platform detection and avoid string literal comparisons.
+- Replaced assert-based type guards with explicit conditional checks to satisfy Bandit security scanning.
+
+### Refactored
+- Comprehensive test suite refactoring following clean architecture principles:
+  - Each test now verifies exactly one behaviour with descriptive naming.
+  - Added OS-specific markers (`@pytest.mark.posix_only`, `@pytest.mark.windows_only`, `@pytest.mark.os_agnostic`) for platform-aware test execution.
+  - Centralised shared fixtures in `conftest.py` including `cli_runner`, `strip_ansi`, `reset_config`, and `sysexits_mode`.
+  - Prefer real behaviour tests over mocks where possible, particularly for signal handling.
+  - Organised tests into logical sections with clear header comments.
+
 ## [2.1.0] - 2025-10-13
 
 ### Changed

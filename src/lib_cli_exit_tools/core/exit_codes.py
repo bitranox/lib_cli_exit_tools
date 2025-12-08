@@ -26,6 +26,23 @@ __all__ = ["get_system_exit_code"]
 Resolver = Callable[[BaseException], int | None]
 
 
+def _is_posix_platform() -> bool:
+    """Check if running on a POSIX platform.
+
+    Why:
+        Centralize platform detection to avoid string literal comparisons.
+    What:
+        Return True if os.name indicates a POSIX system.
+    Parameters:
+        None.
+    Returns:
+        Boolean indicating POSIX platform.
+    Side Effects:
+        None.
+    """
+    return os.name == "posix"
+
+
 def get_system_exit_code(exc: BaseException) -> int:
     """Why:
         Ensure all uncaught exceptions translate into deterministic exit codes.
@@ -236,7 +253,7 @@ def _platform_exception_map() -> Mapping[type[BaseException], int]:
     Side Effects:
         None.
     """
-    if os.name == "posix":
+    if _is_posix_platform():
         return _posix_exception_map()
     return _windows_exception_map()
 

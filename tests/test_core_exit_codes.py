@@ -1,7 +1,17 @@
+"""Tests for exit code translation.
+
+Each test verifies exactly one exit code mapping behavior:
+- CalledProcessError returns subprocess exit codes
+- KeyboardInterrupt maps to 130
+- BrokenPipeError respects configuration
+- SystemExit preserves payloads
+- Platform-specific mappings for POSIX and Windows
+- Sysexits mode mappings
+"""
+
 from __future__ import annotations
 
 import subprocess
-from types import SimpleNamespace
 
 import pytest
 from hypothesis import given, strategies as st
@@ -10,202 +20,313 @@ from lib_cli_exit_tools.core import configuration as cfg
 from lib_cli_exit_tools.core import exit_codes as codes
 
 
+# =============================================================================
+# CalledProcessError Exit Codes
+# =============================================================================
+
+
 @pytest.mark.os_agnostic
-def test_when_called_process_error_occurs_the_return_code_is_preserved() -> None:
+def test_called_process_error_returns_subprocess_exit_code() -> None:
     error = subprocess.CalledProcessError(returncode=7, cmd=["echo"])
     assert codes.get_system_exit_code(error) == 7
 
 
 @pytest.mark.os_agnostic
-def test_when_keyboard_interrupt_occurs_exit_code_is_130() -> None:
-    assert codes.get_system_exit_code(KeyboardInterrupt()) == 130
+def test_called_process_error_with_zero_returns_one() -> None:
+    # Note: Due to `or 1` fallback, zero returncode is treated as falsy and returns 1
+    error = subprocess.CalledProcessError(returncode=0, cmd=["true"])
+    assert codes.get_system_exit_code(error) == 1
 
 
 @pytest.mark.os_agnostic
-def test_when_exception_contains_winerror_the_value_is_used() -> None:
+def test_called_process_error_with_negative_code_returns_negative() -> None:
+    error = subprocess.CalledProcessError(returncode=-9, cmd=["killed"])
+    assert codes.get_system_exit_code(error) == -9
+
+
+# =============================================================================
+# KeyboardInterrupt Exit Code
+# =============================================================================
+
+
+@pytest.mark.os_agnostic
+def test_keyboard_interrupt_returns_130() -> None:
+    assert codes.get_system_exit_code(KeyboardInterrupt()) == 130
+
+
+# =============================================================================
+# Windows Error Attribute
+# =============================================================================
+
+
+@pytest.mark.os_agnostic
+def test_winerror_attribute_becomes_exit_code() -> None:
     class WindowsStyleError(Exception):
         def __init__(self, winerror: int) -> None:
             super().__init__()
             self.winerror = winerror
 
-    error = WindowsStyleError(120)
+    error = WindowsStyleError(winerror=120)
     assert codes.get_system_exit_code(error) == 120
 
 
+# =============================================================================
+# BrokenPipeError Exit Code
+# =============================================================================
+
+
 @pytest.mark.os_agnostic
-def test_when_broken_pipe_occurs_configured_exit_code_is_returned() -> None:
+def test_broken_pipe_returns_configured_exit_code(reset_config: None) -> None:
     cfg.config.broken_pipe_exit_code = 42
-    try:
-        assert codes.get_system_exit_code(BrokenPipeError()) == 42
-    finally:
-        cfg.reset_config()
+    assert codes.get_system_exit_code(BrokenPipeError()) == 42
 
 
 @pytest.mark.os_agnostic
-def test_when_oserror_has_errno_it_is_returned() -> None:
+def test_broken_pipe_default_is_141(reset_config: None) -> None:
+    assert codes.get_system_exit_code(BrokenPipeError()) == 141
+
+
+# =============================================================================
+# OSError with errno
+# =============================================================================
+
+
+@pytest.mark.os_agnostic
+def test_oserror_with_errno_returns_errno() -> None:
     error = FileNotFoundError()
     error.errno = 2  # type: ignore[attr-defined]
     assert codes.get_system_exit_code(error) == 2
 
 
-@pytest.mark.os_agnostic
-def test_when_system_exit_has_string_payload_the_string_is_coerced() -> None:
-    exit_request = SystemExit("9")
-    assert codes.get_system_exit_code(exit_request) == 9
+# =============================================================================
+# SystemExit Payloads
+# =============================================================================
 
 
 @pytest.mark.os_agnostic
-def test_when_system_exit_has_none_payload_zero_is_returned() -> None:
+def test_system_exit_with_integer_returns_that_integer() -> None:
+    assert codes.get_system_exit_code(SystemExit(5)) == 5
+
+
+@pytest.mark.os_agnostic
+def test_system_exit_with_none_returns_zero() -> None:
     exit_request = SystemExit()
     exit_request.code = None  # type: ignore[attr-defined]
     assert codes.get_system_exit_code(exit_request) == 0
 
 
 @pytest.mark.os_agnostic
-def test_when_sysexits_mode_is_enabled_type_error_maps_to_usage() -> None:
-    cfg.config.exit_code_style = "sysexits"
-    try:
-        assert codes.get_system_exit_code(TypeError("bad args")) == 64
-    finally:
-        cfg.reset_config()
+def test_system_exit_with_numeric_string_coerces_to_integer() -> None:
+    assert codes.get_system_exit_code(SystemExit("9")) == 9
 
 
 @pytest.mark.os_agnostic
-def test_when_sysexits_mode_sees_broken_pipe_it_respects_configured_code() -> None:
-    cfg.config.exit_code_style = "sysexits"
-    cfg.config.broken_pipe_exit_code = 12
-    try:
-        assert codes.get_system_exit_code(BrokenPipeError()) == 12
-    finally:
-        cfg.reset_config()
-
-
-@pytest.mark.posix_only
-def test_when_platform_map_handles_posix_value_error_the_errno_is_22(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(codes, "os", SimpleNamespace(name="posix"))
-    assert codes.get_system_exit_code(ValueError("bad value")) == 22
-
-
-@pytest.mark.windows_only
-def test_when_platform_map_handles_windows_permission_error_the_code_is_5(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(codes, "os", SimpleNamespace(name="nt"))
-    assert codes.get_system_exit_code(PermissionError("no permission")) == 5
-
-
-@pytest.mark.os_agnostic
-def test_when_no_resolver_matches_default_exit_code_is_one() -> None:
-    assert codes.get_system_exit_code(RuntimeError("opaque failure")) == 1
-
-
-@pytest.mark.os_agnostic
-def test_when_first_resolved_code_find_nothing_it_returns_none() -> None:
-    class UnknownError(Exception):
-        pass
-
-    assert codes._first_resolved_code(UnknownError()) is None  # pyright: ignore[reportPrivateUsage]
-
-
-@pytest.mark.os_agnostic
-def test_when_system_exit_has_uncoercible_payload_one_is_returned() -> None:
+def test_system_exit_with_non_numeric_string_returns_one() -> None:
     exit_request = SystemExit()
     exit_request.code = "not-a-number"  # type: ignore[attr-defined]
     assert codes.get_system_exit_code(exit_request) == 1
 
 
 @pytest.mark.os_agnostic
-def test_when_system_exit_has_int_payload_the_exit_code_is_preserved() -> None:
-    exit_request = SystemExit(5)
-    assert codes.get_system_exit_code(exit_request) == 5
+def test_system_exit_with_unconvertible_object_returns_one() -> None:
+    exit_request = SystemExit()
+    exit_request.code = object()  # type: ignore[attr-defined]
+    assert codes.get_system_exit_code(exit_request) == 1
+
+
+# =============================================================================
+# Default Fallback
+# =============================================================================
 
 
 @pytest.mark.os_agnostic
-def test_when_sysexits_mode_disabled_returns_none() -> None:
-    cfg.reset_config()
+def test_unknown_exception_returns_one() -> None:
+    assert codes.get_system_exit_code(RuntimeError("opaque failure")) == 1
+
+
+@pytest.mark.os_agnostic
+def test_first_resolved_code_returns_none_for_unknown_exceptions() -> None:
+    class UnknownError(Exception):
+        pass
+
+    assert codes._first_resolved_code(UnknownError()) is None  # pyright: ignore[reportPrivateUsage]
+
+
+# =============================================================================
+# Platform-Specific Mappings (POSIX)
+# =============================================================================
+
+
+@pytest.mark.posix_only
+def test_posix_value_error_maps_to_22() -> None:
+    assert codes.get_system_exit_code(ValueError("bad value")) == 22
+
+
+@pytest.mark.posix_only
+def test_posix_type_error_maps_to_22() -> None:
+    assert codes.get_system_exit_code(TypeError("wrong type")) == 22
+
+
+@pytest.mark.posix_only
+def test_posix_file_not_found_maps_to_2() -> None:
+    error = FileNotFoundError()
+    error.errno = None  # type: ignore[attr-defined]  # force platform map
+    assert codes.get_system_exit_code(error) == 2
+
+
+@pytest.mark.posix_only
+def test_posix_permission_error_maps_to_13() -> None:
+    error = PermissionError()
+    error.errno = None  # type: ignore[attr-defined]  # force platform map
+    assert codes.get_system_exit_code(error) == 13
+
+
+# =============================================================================
+# Platform-Specific Mappings (Windows)
+# =============================================================================
+
+
+@pytest.mark.windows_only
+def test_windows_permission_error_maps_to_5(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(codes, "_is_posix_platform", lambda: False)
+    error = PermissionError()
+    error.errno = None  # type: ignore[attr-defined]  # force platform map
+    assert codes.get_system_exit_code(error) == 5
+
+
+@pytest.mark.windows_only
+def test_windows_file_exists_maps_to_80(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(codes, "_is_posix_platform", lambda: False)
+    error = FileExistsError()
+    error.errno = None  # type: ignore[attr-defined]  # force platform map
+    assert codes.get_system_exit_code(error) == 80
+
+
+# =============================================================================
+# Sysexits Mode
+# =============================================================================
+
+
+@pytest.mark.os_agnostic
+def test_sysexits_mode_disabled_skips_sysexits_resolver(reset_config: None) -> None:
     assert codes._code_from_sysexits_mode(ValueError("ignored")) is None  # pyright: ignore[reportPrivateUsage]
 
 
 @pytest.mark.os_agnostic
-def test_when_sysexits_system_exit_cannot_convert_it_returns_one() -> None:
-    cfg.config.exit_code_style = "sysexits"
-    try:
-        exit_request = SystemExit()
-        exit_request.code = object()  # type: ignore[attr-defined]
-        assert codes._sysexits_from_system_exit(exit_request) == 1  # pyright: ignore[reportPrivateUsage]
-    finally:
-        cfg.reset_config()
+def test_sysexits_type_error_maps_to_64(sysexits_mode: None) -> None:
+    assert codes.get_system_exit_code(TypeError("bad args")) == 64
 
 
 @pytest.mark.os_agnostic
-def test_when_sysexits_called_process_error_has_invalid_returncode_it_falls_back_to_one() -> None:
-    cfg.config.exit_code_style = "sysexits"
-    try:
-        err = subprocess.CalledProcessError(returncode="bad", cmd=["cmd"])  # type: ignore[arg-type]
-        assert codes._sysexits_from_called_process_error(err) == 1  # pyright: ignore[reportPrivateUsage]
-    finally:
-        cfg.reset_config()
+def test_sysexits_value_error_maps_to_64(sysexits_mode: None) -> None:
+    assert codes.get_system_exit_code(ValueError("bad value")) == 64
 
 
 @pytest.mark.os_agnostic
-def test_when_sysexits_permission_error_maps_to_noperm() -> None:
-    cfg.config.exit_code_style = "sysexits"
-    try:
-        assert codes.get_system_exit_code(PermissionError("stop")) == 77
-    finally:
-        cfg.reset_config()
+def test_sysexits_permission_error_maps_to_77(sysexits_mode: None) -> None:
+    assert codes.get_system_exit_code(PermissionError("stop")) == 77
 
 
 @pytest.mark.os_agnostic
-def test_when_sysexits_missing_resource_maps_to_noinput() -> None:
-    cfg.config.exit_code_style = "sysexits"
-    try:
-        assert codes.get_system_exit_code(FileNotFoundError("missing")) == 66
-    finally:
-        cfg.reset_config()
+def test_sysexits_file_not_found_maps_to_66(sysexits_mode: None) -> None:
+    assert codes.get_system_exit_code(FileNotFoundError("missing")) == 66
 
 
 @pytest.mark.os_agnostic
-def test_when_sysexits_io_error_maps_to_ioerr() -> None:
-    cfg.config.exit_code_style = "sysexits"
-    try:
-        assert codes.get_system_exit_code(OSError("io")) == 74
-    finally:
-        cfg.reset_config()
+def test_sysexits_oserror_maps_to_74(sysexits_mode: None) -> None:
+    assert codes.get_system_exit_code(OSError("io")) == 74
 
 
 @pytest.mark.os_agnostic
-def test_when_sysexits_keyboard_interrupt_maps_to_130() -> None:
-    cfg.config.exit_code_style = "sysexits"
-    try:
-        assert codes._sysexits_from_keyboard_interrupt(KeyboardInterrupt()) == 130  # pyright: ignore[reportPrivateUsage]
-    finally:
-        cfg.reset_config()
+def test_sysexits_broken_pipe_respects_config(sysexits_mode: None) -> None:
+    cfg.config.broken_pipe_exit_code = 12
+    assert codes.get_system_exit_code(BrokenPipeError()) == 12
 
 
 @pytest.mark.os_agnostic
-def test_when_sysexits_resolvers_have_no_match_default_one_returns() -> None:
-    cfg.config.exit_code_style = "sysexits"
-    try:
-
-        class NovelError(Exception):
-            pass
-
-        assert codes._sysexits_resolved_code(NovelError("none")) == 1  # pyright: ignore[reportPrivateUsage]
-    finally:
-        cfg.reset_config()
+def test_sysexits_keyboard_interrupt_returns_130(sysexits_mode: None) -> None:
+    result = codes._sysexits_from_keyboard_interrupt(KeyboardInterrupt())  # pyright: ignore[reportPrivateUsage]
+    assert result == 130
 
 
 @pytest.mark.os_agnostic
-def test_when_sysexits_default_resolver_returns_one() -> None:
+def test_sysexits_system_exit_with_unconvertible_returns_one(sysexits_mode: None) -> None:
+    exit_request = SystemExit()
+    exit_request.code = object()  # type: ignore[attr-defined]
+    result = codes._sysexits_from_system_exit(exit_request)  # pyright: ignore[reportPrivateUsage]
+    assert result == 1
+
+
+@pytest.mark.os_agnostic
+def test_sysexits_called_process_error_with_invalid_returncode_returns_one(sysexits_mode: None) -> None:
+    err = subprocess.CalledProcessError(returncode="bad", cmd=["cmd"])  # type: ignore[arg-type]
+    result = codes._sysexits_from_called_process_error(err)  # pyright: ignore[reportPrivateUsage]
+    assert result == 1
+
+
+@pytest.mark.os_agnostic
+def test_sysexits_unknown_exception_returns_one(sysexits_mode: None) -> None:
+    class NovelError(Exception):
+        pass
+
+    result = codes._sysexits_resolved_code(NovelError("none"))  # pyright: ignore[reportPrivateUsage]
+    assert result == 1
+
+
+@pytest.mark.os_agnostic
+def test_sysexits_default_resolver_returns_one() -> None:
     assert codes._sysexits_default(RuntimeError("")) == 1  # pyright: ignore[reportPrivateUsage]
 
 
+@pytest.mark.os_agnostic
+def test_sysexits_broken_pipe_resolver_reflects_config(reset_config: None) -> None:
+    cfg.config.broken_pipe_exit_code = 55
+    result = codes._sysexits_from_broken_pipe(BrokenPipeError())  # pyright: ignore[reportPrivateUsage]
+    assert result == 55
+
+
+@pytest.mark.os_agnostic
+def test_sysexits_fallback_when_default_returns_none(monkeypatch: pytest.MonkeyPatch, sysexits_mode: None) -> None:
+    def default_none(_: BaseException) -> None:
+        return None
+
+    monkeypatch.setattr(codes, "_sysexits_default", default_none)
+    result = codes._sysexits_resolved_code(Exception("fallback"))  # pyright: ignore[reportPrivateUsage]
+    assert result == 1
+
+
+# =============================================================================
+# Safe Int Helper
+# =============================================================================
+
+
+@pytest.mark.os_agnostic
+def test_safe_int_with_unconvertible_returns_none() -> None:
+    assert codes._safe_int("not-int") is None  # pyright: ignore[reportPrivateUsage]
+
+
+@pytest.mark.os_agnostic
+def test_safe_int_with_none_returns_none() -> None:
+    assert codes._safe_int(None) is None  # pyright: ignore[reportPrivateUsage]
+
+
+@pytest.mark.os_agnostic
+def test_safe_int_with_integer_returns_same_integer() -> None:
+    assert codes._safe_int(42) == 42  # pyright: ignore[reportPrivateUsage]
+
+
+# =============================================================================
+# Property-Based Tests
+# =============================================================================
+
+
 @given(st.integers(min_value=-10_000, max_value=10_000))
-def test_system_exit_payload_round_trips_through_exit_code(payload: int) -> None:
+def test_system_exit_payload_round_trips(payload: int) -> None:
     assert codes.get_system_exit_code(SystemExit(payload)) == payload
 
 
 @given(st.integers(min_value=-10_000, max_value=10_000))
-def test_sysexits_mode_preserves_system_exit_payload(payload: int) -> None:
+def test_sysexits_preserves_system_exit_payload(payload: int) -> None:
     cfg.config.exit_code_style = "sysexits"
     try:
         assert codes.get_system_exit_code(SystemExit(payload)) == payload
@@ -214,7 +335,7 @@ def test_sysexits_mode_preserves_system_exit_payload(payload: int) -> None:
 
 
 @given(st.integers(min_value=-10_000, max_value=10_000))
-def test_configured_broken_pipe_exit_code_matches_setting(exit_code: int) -> None:
+def test_broken_pipe_respects_any_configured_code(exit_code: int) -> None:
     cfg.config.broken_pipe_exit_code = exit_code
     try:
         assert codes.get_system_exit_code(BrokenPipeError()) == exit_code
@@ -232,34 +353,6 @@ def test_configured_broken_pipe_exit_code_matches_setting(exit_code: int) -> Non
         st.floats(allow_nan=False, allow_infinity=False),
     )
 )
-def test_safe_int_never_raises_and_returns_int_or_none(value: object | None) -> None:
+def test_safe_int_never_raises(value: object | None) -> None:
     result = codes._safe_int(value)  # pyright: ignore[reportPrivateUsage]
     assert result is None or isinstance(result, int)
-
-
-@pytest.mark.os_agnostic
-def test_when_sysexits_broken_pipe_resolver_reflects_configured_code() -> None:
-    cfg.config.broken_pipe_exit_code = 55
-    try:
-        assert codes._sysexits_from_broken_pipe(BrokenPipeError()) == 55  # pyright: ignore[reportPrivateUsage]
-    finally:
-        cfg.reset_config()
-
-
-@pytest.mark.os_agnostic
-def test_when_sysexits_default_returns_none_the_resolved_code_falls_back(monkeypatch: pytest.MonkeyPatch) -> None:
-    cfg.config.exit_code_style = "sysexits"
-    try:
-
-        def default_none(_: BaseException) -> None:
-            return None
-
-        monkeypatch.setattr(codes, "_sysexits_default", default_none)  # pyright: ignore[reportPrivateUsage]
-        assert codes._sysexits_resolved_code(Exception("fallback")) == 1  # pyright: ignore[reportPrivateUsage]
-    finally:
-        cfg.reset_config()
-
-
-@pytest.mark.os_agnostic
-def test_when_safe_int_cannot_convert_it_returns_none() -> None:
-    assert codes._safe_int("not-int") is None  # pyright: ignore[reportPrivateUsage]

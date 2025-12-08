@@ -1,4 +1,10 @@
-"""Integration tests that exercise real signal delivery against the CLI runner."""
+"""Integration tests for real signal delivery against the CLI runner.
+
+Each test verifies exactly one signal handling behavior:
+- SIGINT results in exit code 130 (POSIX)
+- CTRL_BREAK_EVENT results in exit code 149 (Windows)
+- Signal messages are displayed to stderr
+"""
 
 from __future__ import annotations
 
@@ -12,6 +18,11 @@ from pathlib import Path
 from typing import cast
 
 import pytest
+
+
+# =============================================================================
+# Test Harness
+# =============================================================================
 
 
 _SCRIPT_TEMPLATE = """
@@ -69,14 +80,51 @@ def _wait_for_ready_marker(proc: subprocess.Popen[str], *, timeout: float = 5.0)
     pytest.fail("timed out waiting for readiness marker from signal harness")
 
 
-ReadyLine = str
+# =============================================================================
+# POSIX Signal Tests
+# =============================================================================
 
 
 @pytest.mark.posix_only
-def test_signal_handlers_translate_sigint_exit_code(tmp_path: Path) -> None:
-    if os.name != "posix":
-        pytest.skip("SIGINT integration test runs only on POSIX platforms")
+def test_sigint_returns_exit_code_130(tmp_path: Path) -> None:
+    script = _write_harness(tmp_path)
+    env = os.environ | {"PYTHONUNBUFFERED": "1"}
+    proc = subprocess.Popen(
+        [sys.executable, str(script)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env,
+    )
 
+    _wait_for_ready_marker(proc)
+    proc.send_signal(signal.SIGINT)
+    _, _, returncode = _communicate(proc)
+
+    assert returncode == 130
+
+
+@pytest.mark.posix_only
+def test_sigint_displays_abort_message(tmp_path: Path) -> None:
+    script = _write_harness(tmp_path)
+    env = os.environ | {"PYTHONUNBUFFERED": "1"}
+    proc = subprocess.Popen(
+        [sys.executable, str(script)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env,
+    )
+
+    _wait_for_ready_marker(proc)
+    proc.send_signal(signal.SIGINT)
+    _, stderr, _ = _communicate(proc)
+
+    assert "Aborted (SIGINT)." in stderr
+
+
+@pytest.mark.posix_only
+def test_sigint_outputs_ready_marker(tmp_path: Path) -> None:
     script = _write_harness(tmp_path)
     env = os.environ | {"PYTHONUNBUFFERED": "1"}
     proc = subprocess.Popen(
@@ -89,15 +137,66 @@ def test_signal_handlers_translate_sigint_exit_code(tmp_path: Path) -> None:
 
     ready_line = _wait_for_ready_marker(proc)
     proc.send_signal(signal.SIGINT)
-    stdout, stderr, returncode = _communicate(proc)
+    stdout, _, _ = _communicate(proc)
 
-    assert returncode == 130
     assert "ready" in stdout or "ready" in ready_line
-    assert "Aborted (SIGINT)." in stderr
+
+
+# =============================================================================
+# Windows Signal Tests
+# =============================================================================
 
 
 @pytest.mark.windows_only
-def test_signal_handlers_translate_ctrl_break_exit_code(tmp_path: Path) -> None:
+def test_ctrl_break_returns_exit_code_149(tmp_path: Path) -> None:
+    if not hasattr(signal, "CTRL_BREAK_EVENT"):
+        pytest.skip("CTRL_BREAK_EVENT not available on this interpreter")
+
+    script = _write_harness(tmp_path)
+    env = os.environ | {"PYTHONUNBUFFERED": "1"}
+    proc = subprocess.Popen(
+        [sys.executable, str(script)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env,
+        creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
+    )
+
+    _wait_for_ready_marker(proc)
+    ctrl_break = cast(int, getattr(signal, "CTRL_BREAK_EVENT"))
+    proc.send_signal(ctrl_break)
+    _, _, returncode = _communicate(proc)
+
+    assert returncode == 149
+
+
+@pytest.mark.windows_only
+def test_ctrl_break_displays_sigbreak_message(tmp_path: Path) -> None:
+    if not hasattr(signal, "CTRL_BREAK_EVENT"):
+        pytest.skip("CTRL_BREAK_EVENT not available on this interpreter")
+
+    script = _write_harness(tmp_path)
+    env = os.environ | {"PYTHONUNBUFFERED": "1"}
+    proc = subprocess.Popen(
+        [sys.executable, str(script)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env,
+        creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
+    )
+
+    _wait_for_ready_marker(proc)
+    ctrl_break = cast(int, getattr(signal, "CTRL_BREAK_EVENT"))
+    proc.send_signal(ctrl_break)
+    _, stderr, _ = _communicate(proc)
+
+    assert "SIGBREAK" in stderr
+
+
+@pytest.mark.windows_only
+def test_ctrl_break_outputs_ready_marker(tmp_path: Path) -> None:
     if not hasattr(signal, "CTRL_BREAK_EVENT"):
         pytest.skip("CTRL_BREAK_EVENT not available on this interpreter")
 
@@ -115,8 +214,6 @@ def test_signal_handlers_translate_ctrl_break_exit_code(tmp_path: Path) -> None:
     ready_line = _wait_for_ready_marker(proc)
     ctrl_break = cast(int, getattr(signal, "CTRL_BREAK_EVENT"))
     proc.send_signal(ctrl_break)
-    stdout, stderr, returncode = _communicate(proc)
+    stdout, _, _ = _communicate(proc)
 
-    assert returncode == 149
     assert "ready" in stdout or "ready" in ready_line
-    assert "SIGBREAK" in stderr

@@ -16,7 +16,8 @@ System Integration:
 from __future__ import annotations
 
 from contextlib import contextmanager
-from typing import Iterator, Sequence
+from dataclasses import dataclass
+from typing import Any, Iterator, Sequence, TypedDict
 
 import rich_click as click
 from rich_click import rich_click as rich_config
@@ -26,7 +27,45 @@ from . import lib_cli_exit_tools
 
 #: Help flag aliases applied to every Click command so documentation and CLI
 #: behaviour stay consistent (`-h` mirrors `--help`).
-CLICK_CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])  # noqa: C408
+#: Note: This uses dict literal syntax as required by Click framework API.
+CLICK_CONTEXT_SETTINGS = {"help_option_names": ["-h", "--help"]}
+
+
+class RichClickSnapshot(TypedDict):
+    """Type-safe snapshot of rich-click global styling configuration.
+
+    Attributes:
+        FORCE_TERMINAL: Whether to force terminal styling.
+        COLOR_SYSTEM: Color system to use (e.g., "auto", "256", "truecolor", None).
+        STYLE_OPTIONS_PANEL_BOX: Box style for options panel.
+        STYLE_COMMANDS_PANEL_BOX: Box style for commands panel.
+        STYLE_ERRORS_PANEL_BOX: Box style for errors panel.
+
+    Note:
+        Uses Any for field types to accommodate the dynamic nature of rich-click
+        configuration, which doesn't provide stable typing guarantees.
+    """
+
+    FORCE_TERMINAL: Any
+    COLOR_SYSTEM: Any
+    STYLE_OPTIONS_PANEL_BOX: Any
+    STYLE_COMMANDS_PANEL_BOX: Any
+    STYLE_ERRORS_PANEL_BOX: Any
+
+
+@dataclass
+class CliContextState:
+    """Type-safe container for Click context object state.
+
+    Why:
+        Replaces untyped dict usage in ctx.obj to enforce type safety and
+        prevent string literal key access violations.
+
+    Attributes:
+        traceback: Whether to show full Python tracebacks on errors.
+    """
+
+    traceback: bool = False
 
 
 def _needs_plain_output(stream: object) -> bool:
@@ -59,24 +98,26 @@ def _prefer_ascii_layout() -> None:
     rich_config.STYLE_ERRORS_PANEL_BOX = None
 
 
-def _snapshot_rich_click_options() -> dict[str, object]:
+def _snapshot_rich_click_options() -> RichClickSnapshot:
     """Capture rich-click global styling toggles for later restoration."""
 
-    attributes = (
-        "FORCE_TERMINAL",
-        "COLOR_SYSTEM",
-        "STYLE_OPTIONS_PANEL_BOX",
-        "STYLE_COMMANDS_PANEL_BOX",
-        "STYLE_ERRORS_PANEL_BOX",
+    return RichClickSnapshot(
+        FORCE_TERMINAL=getattr(rich_config, "FORCE_TERMINAL", None),
+        COLOR_SYSTEM=getattr(rich_config, "COLOR_SYSTEM", None),
+        STYLE_OPTIONS_PANEL_BOX=getattr(rich_config, "STYLE_OPTIONS_PANEL_BOX", None),
+        STYLE_COMMANDS_PANEL_BOX=getattr(rich_config, "STYLE_COMMANDS_PANEL_BOX", None),
+        STYLE_ERRORS_PANEL_BOX=getattr(rich_config, "STYLE_ERRORS_PANEL_BOX", None),
     )
-    return {name: getattr(rich_config, name, None) for name in attributes}
 
 
-def _restore_rich_click_options(snapshot: dict[str, object]) -> None:
+def _restore_rich_click_options(snapshot: RichClickSnapshot) -> None:
     """Restore rich-click globals to the captured snapshot."""
 
-    for name, value in snapshot.items():
-        setattr(rich_config, name, value)
+    rich_config.FORCE_TERMINAL = snapshot["FORCE_TERMINAL"]
+    rich_config.COLOR_SYSTEM = snapshot["COLOR_SYSTEM"]
+    rich_config.STYLE_OPTIONS_PANEL_BOX = snapshot["STYLE_OPTIONS_PANEL_BOX"]
+    rich_config.STYLE_COMMANDS_PANEL_BOX = snapshot["STYLE_COMMANDS_PANEL_BOX"]
+    rich_config.STYLE_ERRORS_PANEL_BOX = snapshot["STYLE_ERRORS_PANEL_BOX"]
 
 
 @contextmanager
@@ -130,8 +171,21 @@ def cli(ctx: click.Context, traceback: bool) -> None:
 
 
 def _store_traceback_flag(ctx: click.Context, traceback: bool) -> None:
-    ctx.ensure_object(dict)
-    ctx.obj["traceback"] = traceback
+    """Store traceback flag in typed context state.
+
+    Parameters:
+        ctx: Click context object for the current invocation.
+        traceback: Whether to show full Python tracebacks on errors.
+
+    Side Effects:
+        Initializes ctx.obj as CliContextState if not already set and updates
+        the traceback field.
+    """
+    ctx.ensure_object(CliContextState)
+    # Type narrowing: ctx.obj is guaranteed to be CliContextState after ensure_object
+    state = ctx.obj
+    if isinstance(state, CliContextState):  # nosec B101 - type guard, not assertion
+        state.traceback = traceback
 
 
 @cli.command("info", context_settings=CLICK_CONTEXT_SETTINGS)
