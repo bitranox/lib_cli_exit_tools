@@ -27,7 +27,7 @@ The sections below cover more specialised workflows, from editable installs to a
 
 ## Supported Python Versions
 
-`lib_cli_exit_tools` targets Python 3.13 and newer. Wheels are published for CPython on Linux, macOS, and Windows. For alternative interpreters (PyPy) install from source using `pip install lib_cli_exit_tools`.
+`lib_cli_exit_tools` targets Python 3.10 and newer. Wheels are published for CPython on Linux, macOS, and Windows. For alternative interpreters (PyPy) install from source using `pip install lib_cli_exit_tools`.
 
 ## Installation Flows
 
