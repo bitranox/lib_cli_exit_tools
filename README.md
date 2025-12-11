@@ -20,7 +20,7 @@ Small helpers for robust CLI exit handling:
 
 ## Install
 
-Requires Python 3.11 or newer.
+Requires Python 3.9 or newer.
 
 ```bash
 pip install lib_cli_exit_tools
@@ -546,7 +546,7 @@ When installed, the generated console scripts (`lib-cli-exit-tools`, `cli-exit-t
 
 ## Modern Python Toolchain
 
-- Targets Python 3.11+ for broad compatibility while leveraging modern language features.
+- Targets Python 3.9+ for maximum compatibility across environments.
 - Development extras track the latest stable releases published on PyPI so quality gates match local and CI environments.
 - GitHub Actions workflows rely on the current major releases of `actions/checkout`, `actions/setup-python`, and `astral-sh/setup-uv`, aligning the automation stack with the 2025 runner images.
 

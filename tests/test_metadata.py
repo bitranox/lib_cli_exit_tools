@@ -8,9 +8,13 @@ Each test verifies exactly one metadata behavior:
 from __future__ import annotations
 
 import runpy
-import tomllib
 from pathlib import Path
 from typing import Any, cast
+
+try:
+    import tomllib
+except ModuleNotFoundError:
+    import tomli as tomllib  # type: ignore[import-not-found,no-redef]
 
 import pytest
 

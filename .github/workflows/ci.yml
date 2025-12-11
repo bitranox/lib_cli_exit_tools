@@ -37,8 +37,12 @@ jobs:
         shell: python
         run: |
           import os
-          import tomllib
           from pathlib import Path
+
+          try:
+              import tomllib
+          except ModuleNotFoundError:
+              import pip._vendor.tomli as tomllib
 
           data = tomllib.loads(Path('pyproject.toml').read_text('utf-8'))
           project = data['project']['name']
@@ -123,8 +127,12 @@ jobs:
         shell: python
         run: |
           import os
-          import tomllib
           from pathlib import Path
+
+          try:
+              import tomllib
+          except ModuleNotFoundError:
+              import pip._vendor.tomli as tomllib
 
           data = tomllib.loads(Path('pyproject.toml').read_text('utf-8'))
           project = data['project']['name']
