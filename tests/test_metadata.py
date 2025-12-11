@@ -8,12 +8,13 @@ Each test verifies exactly one metadata behavior:
 from __future__ import annotations
 
 import runpy
+import sys
 from pathlib import Path
 from typing import Any, cast
 
-try:
+if sys.version_info >= (3, 11):
     import tomllib
-except ModuleNotFoundError:
+else:
     import tomli as tomllib  # type: ignore[import-not-found,no-redef]
 
 import pytest
