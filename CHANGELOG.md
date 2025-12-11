@@ -6,8 +6,8 @@ All notable changes to this project are documented here. The format follows [Kee
 ## [2.2.0] - 2025-12-11
 
 ### Changed
-- Lowered minimum Python version from 3.13 to 3.9 for maximum compatibility across environments.
-- Updated ruff target-version to py39 to match the new baseline.
+- Lowered minimum Python version from 3.13 to 3.10 for broader compatibility.
+- Updated ruff target-version to py310 to match the new baseline.
 
 ### Security
 - Added setuptools vulnerability IDs (PYSEC-2022-43012, CVE-2024-6345, PYSEC-2025-49) to pip-audit ignore list. These are build-time dependencies managed by the CI environment, not runtime dependencies.
