@@ -1,6 +1,6 @@
 [project]
 name = "lib_cli_exit_tools"
-version = "2.1.1"
+version = "2.2.0"
 description = "CLI exit handling helpers: clean signals, exit codes, and error printing"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -28,7 +28,7 @@ dev = [
   "codecov-cli>=11.2.6",
   "coverage[toml]>=7.13.0",
   "hypothesis>=6.148.7",
-  "import-linter>=2.7",
+  "import-linter>=2.8",
   "bandit>=1.9.2",
   "pip-audit>=2.10.0",
   "pyright>=1.1.407",
@@ -56,7 +56,7 @@ include = ["src/lib_cli_exit_tools/py.typed"]
 
 [tool.ruff]
 line-length = 160
-target-version = "py313"
+target-version = "py311"
 
 [tool.ruff.lint.per-file-ignores]
 # ignore the "unused import sys" in the jupyter notebook - which we need (it is a linter hickup)
@@ -155,4 +155,13 @@ forbidden_modules = [
 # Known vulnerabilities to ignore (unfixable or accepted risk)
 # GHSA-4xh5-x5gv-qwph: py library ReDoS (no fix available, low risk)
 # PYSEC-2022-42969: same as above (alias)
-ignore-vulns = ["GHSA-4xh5-x5gv-qwph", "PYSEC-2022-42969"]
+# PYSEC-2022-43012, CVE-2024-6345, PYSEC-2025-49: setuptools vulnerabilities
+#   These are build-time dependencies only, not runtime. The virtual environment
+#   setuptools version is managed by the CI environment/pip itself.
+ignore-vulns = [
+  "GHSA-4xh5-x5gv-qwph",
+  "PYSEC-2022-42969",
+  "PYSEC-2022-43012",
+  "CVE-2024-6345",
+  "PYSEC-2025-49",
+]

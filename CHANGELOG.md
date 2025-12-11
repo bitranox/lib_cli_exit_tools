@@ -3,6 +3,15 @@
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [2.2.0] - 2025-12-11
+
+### Changed
+- Lowered minimum Python version from 3.13 to 3.11 for broader compatibility.
+- Updated ruff target-version to py311 to match the new baseline.
+
+### Security
+- Added setuptools vulnerability IDs (PYSEC-2022-43012, CVE-2024-6345, PYSEC-2025-49) to pip-audit ignore list. These are build-time dependencies managed by the CI environment, not runtime dependencies.
+
 ## [2.1.1] - 2025-12-08
 
 ### Changed
