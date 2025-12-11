@@ -18,6 +18,20 @@ Small helpers for robust CLI exit handling:
 - Consistent exception → exit code mapping
 - Concise error printing with optional traceback and subprocess stdout/stderr capture
 
+## Why lib_cli_exit_tools?
+
+Building CLI applications that behave correctly in shell pipelines, CI/CD systems, and across platforms is surprisingly tricky. This library solves five common pain points:
+
+1. **Correct Exit Codes** — Exceptions are automatically mapped to platform-appropriate exit codes (POSIX errno or BSD sysexits). `FileNotFoundError` returns `2`, `PermissionError` returns `13` on POSIX, and `KeyboardInterrupt` returns `130` — matching shell conventions without manual bookkeeping.
+
+2. **Portable Signal Handling** — SIGINT (Ctrl+C), SIGTERM, and Windows SIGBREAK are translated into structured Python exceptions with deterministic exit codes. Your CLI behaves consistently whether terminated by a user, a process manager, or a CI runner.
+
+3. **Clean Error Output** — Uncaught exceptions produce concise, coloured error messages by default. Toggle `--traceback` for full Rich-formatted stack traces during debugging — no code changes required.
+
+4. **Pipeline-Friendly** — `BrokenPipeError` is handled gracefully (exit 141 by default, matching `128 + SIGPIPE`), so piping output to `head` or other truncating tools doesn't produce noisy tracebacks.
+
+5. **Zero Boilerplate** — Wrap any Click command with `run_cli()` and get signal handling, exit-code translation, and stream flushing in one call. Configuration is centralised and test-friendly via context managers.
+
 ## Install
 
 Requires Python 3.10 or newer.
@@ -38,6 +52,35 @@ lib-cli-exit-tools --help
 lib-cli-exit-tools info
 lib-cli-exit-tools fail  # intentionally trigger RuntimeError to test error paths
 # Aliases are also generated: `cli-exit-tools`, `lib_cli_exit_tools`
+```
+
+## CLI Reference
+
+The library installs three equivalent console scripts: `lib-cli-exit-tools` (primary), `cli-exit-tools`, and `lib_cli_exit_tools`. All invoke `lib_cli_exit_tools.cli:main`.
+
+### Global Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--traceback` / `--no-traceback` | `False` | Show full Python traceback on errors |
+| `--version` | — | Show program version and exit |
+| `-h`, `--help` | — | Show help message and exit |
+
+### Commands
+
+#### `info`
+Display package metadata (name, version, homepage, author).
+
+```bash
+lib-cli-exit-tools info
+```
+
+#### `fail`
+Intentionally raise `RuntimeError('i should fail')` to validate error handling paths.
+
+```bash
+lib-cli-exit-tools fail
+lib-cli-exit-tools --traceback fail  # show full traceback
 ```
 
 ### Examples
@@ -72,7 +115,7 @@ Run it with:
 python hello.py
 ```
 
-#### 2. Verbose-mode helper using `cli_session`
+#### 2. Traceback-mode helper using `cli_session`
 
 ```python
 from __future__ import annotations
@@ -83,22 +126,22 @@ from lib_cli_exit_tools import cli_session, run_cli
 
 
 @click.command()
-@click.option("--verbose", is_flag=True, help="Show full tracebacks on error")
-def cli(verbose: bool) -> int:
-    with cli_session(overrides={"traceback": verbose}) as execute:
+@click.option("--traceback", is_flag=True, help="Show full tracebacks on error")
+def cli(traceback: bool) -> int:
+    with cli_session(overrides={"traceback": traceback}) as execute:
         return execute(failable, argv=[])
 
 
 @click.command()
 def failable() -> None:
-    raise RuntimeError("toggle --verbose to see the full traceback")
+    raise RuntimeError("toggle --traceback to see the full traceback")
 
 
 if __name__ == "__main__":
     raise SystemExit(run_cli(cli))
 ```
 
-Invoking `python cli.py --verbose` enables coloured tracebacks just for that
+Invoking `python cli.py --traceback` enables coloured tracebacks just for that
 run and resets the configuration afterwards.
 
 #### 3. Full-featured multi-command CLI
@@ -117,21 +160,21 @@ from lib_cli_exit_tools import SignalSpec, cli_session, default_signal_specs
 @dataclass(slots=True)
 class Settings:
     pretty: bool
-    verbose: bool
+    traceback: bool
 
 
 @click.group()
 @click.option("--pretty/--no-pretty", default=True)
-@click.option("--verbose", is_flag=True)
+@click.option("--traceback", is_flag=True, help="Show full tracebacks on error")
 @click.pass_context
-def cli(ctx: click.Context, pretty: bool, verbose: bool) -> None:
-    ctx.obj = Settings(pretty=pretty, verbose=verbose)
+def cli(ctx: click.Context, pretty: bool, traceback: bool) -> None:
+    ctx.obj = Settings(pretty=pretty, traceback=traceback)
 
 
 @cli.command()
 @click.pass_obj
 def info(settings: Settings) -> None:
-    payload = {"verbose": settings.verbose, "pretty": settings.pretty}
+    payload = {"traceback": settings.traceback, "pretty": settings.pretty}
     click.echo(json.dumps(payload, indent=2 if settings.pretty else None))
 
 
@@ -271,9 +314,12 @@ config.broken_pipe_exit_code = 0     # treat BrokenPipeError as a benign truncat
 
 Field reference:
 
-- `traceback` (`bool`, default `False`): when `True`, `handle_cli_exception` renders a full Rich traceback to stderr and then returns a non-zero exit code. The original exception is not re-raised; callers should rely on the rendered output and returned status. The bundled CLI toggles this via `--traceback/--no-traceback`.
-- `exit_code_style` (`"errno"` or `"sysexits"`, default `"errno"`): controls the numeric mapping produced by `get_system_exit_code`. `errno` returns POSIX/Windows-style codes (e.g., `FileNotFoundError → 2`, `SIGINT → 130`); `sysexits` returns BSD-style semantic codes (`EX_NOINPUT`, `EX_USAGE`, etc.).
-- `broken_pipe_exit_code` (`int`, default `141`): overrides the exit status when a `BrokenPipeError` is raised (the default mirrors `128 + SIGPIPE`). Set this to `0` if you want truncation to be treated as success.
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `traceback` | `bool` | `False` | When `True`, `handle_cli_exception` renders a full Rich traceback to stderr. The bundled CLI toggles this via `--traceback/--no-traceback`. |
+| `exit_code_style` | `"errno"` \| `"sysexits"` | `"errno"` | Controls exit code mapping. `errno` returns POSIX/Windows-style codes; `sysexits` returns BSD-style semantic codes (EX_USAGE, EX_NOINPUT, etc.). |
+| `broken_pipe_exit_code` | `int` | `141` | Exit status for `BrokenPipeError` (default mirrors `128 + SIGPIPE`). Set to `0` to treat truncation as success. |
+| `traceback_force_color` | `bool` | `False` | Force Rich to emit ANSI-coloured tracebacks even when stderr is not a TTY. Useful for CI logs. |
 
 Remember that `config` is module-level—if you call the library from multiple threads or embed it in another CLI, configure it once during bootstrap before handing control to user code. When you need temporary overrides (for tests or nested CLIs), wrap the change with the built-in context manager so state is restored automatically:
 
@@ -360,22 +406,25 @@ Parameters:
 - `exception_handler`: Callable receiving the raised exception and returning an exit code; defaults to ``handle_cli_exception``.
 - `signal_installer`: Callable mirroring ``install_signal_handlers`` for embedding scenarios.
 
-### `cli_session(*, summary_limit=500, verbose_limit=10_000, overrides=None)`
-Context manager that snapshots :mod:`lib_cli_exit_tools.config`, optionally
+### `cli_session(*, summary_limit=500, verbose_limit=10_000, overrides=None, restore=True)`
+Context manager that snapshots `lib_cli_exit_tools.config`, optionally
 applies temporary overrides, and yields a callable compatible with
-``run_cli``.
+`run_cli`.
 
 Parameters:
-- `summary_limit`: Character budget when tracebacks are disabled.
-- `verbose_limit`: Character budget when tracebacks are enabled.
-- `overrides`: Mapping of configuration field/value pairs applied during the session.
+- `summary_limit` (`int`, default `500`): Character budget when tracebacks are disabled.
+- `verbose_limit` (`int`, default `10_000`): Character budget when tracebacks are enabled.
+- `overrides` (`Mapping[str, object] | None`, default `None`): Mapping of configuration field/value pairs applied during the session. When `traceback` is supplied and `traceback_force_color` is omitted, colour output is automatically forced.
+- `restore` (`bool`, default `True`): When `True`, configuration state is restored after the session. Set to `False` to leave overrides in place once the context exits.
 
 Use it to restore configuration automatically—even when the wrapped command
 raises:
 
 ```python
+from lib_cli_exit_tools import cli_session
+
 with cli_session(overrides={"traceback": True}) as run:
-    exit_code = run(click_command, argv=args)
+    exit_code = run(my_click_command, argv=["--help"])
 ```
 
 ### `handle_cli_exception(exc, *, signal_specs=None, echo=None) -> int`

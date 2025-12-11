@@ -3,6 +3,20 @@
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [2.2.1] - 2025-12-11
+
+### Added
+- "Why lib_cli_exit_tools?" section in README highlighting five key benefits: correct exit codes, portable signal handling, clean error output, pipeline-friendly behaviour, and zero boilerplate.
+- CLI Reference section in README with global options table and command descriptions.
+
+### Changed
+- Replaced all `--verbose` references in README examples with `--traceback` to match actual CLI option.
+- Updated `cli_session` documentation to include missing `restore` parameter.
+- Converted config field reference to table format with types and defaults.
+
+### Fixed
+- Added missing `traceback_force_color` configuration field to documentation.
+
 ## [2.2.0] - 2025-12-11
 
 ### Changed
