@@ -3,6 +3,11 @@
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [2.2.2] - 2025-12-12
+
+### Changed
+- Replaced `tomllib`/`tomli` with `rtoml` for TOML parsing across the entire codebase and CI/CD pipelines. This provides a single, fast Rust-based implementation without version-conditional imports.
+
 ## [2.2.1] - 2025-12-11
 
 ### Added

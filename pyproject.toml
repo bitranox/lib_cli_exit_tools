@@ -1,6 +1,6 @@
 [project]
 name = "lib_cli_exit_tools"
-version = "2.2.1"
+version = "2.2.2"
 description = "CLI exit handling helpers: clean signals, exit codes, and error printing"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -35,9 +35,9 @@ dev = [
   "pytest>=9.0.2",
   "pytest-asyncio>=1.3.0",
   "pytest-cov>=7.0.0",
-  "ruff>=0.14.8",
+  "ruff>=0.14.9",
   "textual>=6.8.0",
-  "tomli>=2.3.0;python_version<'3.11'",
+  "rtoml>=0.13.0",
   "twine>=6.2.0"
 ]
 
