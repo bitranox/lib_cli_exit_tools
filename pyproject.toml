@@ -1,6 +1,6 @@
 [project]
 name = "lib_cli_exit_tools"
-version = "2.2.2"
+version = "2.2.3"
 description = "CLI exit handling helpers: clean signals, exit codes, and error printing"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -36,7 +36,7 @@ dev = [
   "pytest-asyncio>=1.3.0",
   "pytest-cov>=7.0.0",
   "ruff>=0.14.9",
-  "textual>=6.8.0",
+  "textual>=6.10.0",
   "rtoml>=0.13.0",
   "twine>=6.2.0"
 ]
@@ -159,10 +159,13 @@ forbidden_modules = [
 # PYSEC-2022-43012, CVE-2024-6345, PYSEC-2025-49: setuptools vulnerabilities
 #   These are build-time dependencies only, not runtime. The virtual environment
 #   setuptools version is managed by the CI environment/pip itself.
+# CVE-2025-68146: filelock <3.20.1 vulnerability, transitive dev dependency
+#   Will be resolved when upstream packages update their dependencies.
 ignore-vulns = [
   "GHSA-4xh5-x5gv-qwph",
   "PYSEC-2022-42969",
   "PYSEC-2022-43012",
   "CVE-2024-6345",
   "PYSEC-2025-49",
+  "CVE-2025-68146",
 ]

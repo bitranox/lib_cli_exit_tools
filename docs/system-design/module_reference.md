@@ -221,6 +221,6 @@ Downstream CLIs and automation pipelines need deterministic exit codes, signal h
 
 ---
 
-**Created:** 2025-10-08 by Codex (automated)  
-**Last Updated:** 2025-10-08 by Codex (automated)  
+**Created:** 2025-10-08 by Codex (automated)
+**Last Updated:** 2025-12-17
 **Review Cycle:** Revisit every 90 days or after major CLI/runtime changes

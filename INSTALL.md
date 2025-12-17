@@ -126,8 +126,9 @@ We distribute via PyPI only. If you prefer isolated CLI installs, use tools such
 
 After installation the following commands should resolve:
 
-- `lib_cli_exit_tools`
-- `cli-exit-tools`
+- `lib-cli-exit-tools` (default console script)
+- `lib_cli_exit_tools` (alias)
+- `cli-exit-tools` (alias)
 - `python -m lib_cli_exit_tools`
 
 If you installed inside a virtual environment, activate it before running the commands. For user installs, ensure the relevant `bin`/`Scripts` directory is included in your PATH:

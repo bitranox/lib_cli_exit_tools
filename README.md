@@ -93,7 +93,7 @@ CLI that demonstrates configuration hooks and structured error handling.
 ```python
 from __future__ import annotations
 
-import click
+import rich_click as click
 
 from lib_cli_exit_tools import run_cli
 
@@ -101,7 +101,6 @@ from lib_cli_exit_tools import run_cli
 @click.command()
 def hello() -> None:
     """Say hello with automatic signal-aware exit handling."""
-
     click.echo("Hello from lib_cli_exit_tools!")
 
 
@@ -120,29 +119,32 @@ python hello.py
 ```python
 from __future__ import annotations
 
-import click
+import rich_click as click
 
-from lib_cli_exit_tools import cli_session, run_cli
-
-
-@click.command()
-@click.option("--traceback", is_flag=True, help="Show full tracebacks on error")
-def cli(traceback: bool) -> int:
-    with cli_session(overrides={"traceback": traceback}) as execute:
-        return execute(failable, argv=[])
+from lib_cli_exit_tools import cli_session
 
 
 @click.command()
 def failable() -> None:
+    """Command that always fails to demonstrate traceback handling."""
     raise RuntimeError("toggle --traceback to see the full traceback")
 
 
+def main(*, traceback: bool = False) -> int:
+    """Run failable with optional traceback display."""
+    with cli_session(overrides={"traceback": traceback}) as run:
+        return run(failable)
+
+
 if __name__ == "__main__":
-    raise SystemExit(run_cli(cli))
+    import sys
+
+    enable_traceback = "--traceback" in sys.argv
+    raise SystemExit(main(traceback=enable_traceback))
 ```
 
-Invoking `python cli.py --traceback` enables coloured tracebacks just for that
-run and resets the configuration afterwards.
+Running `python cli.py --traceback` enables coloured tracebacks for that
+session. The `cli_session` context manager restores configuration afterwards.
 
 #### 3. Full-featured multi-command CLI
 
@@ -150,9 +152,10 @@ run and resets the configuration afterwards.
 from __future__ import annotations
 
 import json
+import sys
 from dataclasses import dataclass
 
-import click
+import rich_click as click
 
 from lib_cli_exit_tools import SignalSpec, cli_session, default_signal_specs
 
@@ -160,21 +163,19 @@ from lib_cli_exit_tools import SignalSpec, cli_session, default_signal_specs
 @dataclass(slots=True)
 class Settings:
     pretty: bool
-    traceback: bool
 
 
 @click.group()
 @click.option("--pretty/--no-pretty", default=True)
-@click.option("--traceback", is_flag=True, help="Show full tracebacks on error")
 @click.pass_context
-def cli(ctx: click.Context, pretty: bool, traceback: bool) -> None:
-    ctx.obj = Settings(pretty=pretty, traceback=traceback)
+def cli(ctx: click.Context, pretty: bool) -> None:
+    ctx.obj = Settings(pretty=pretty)
 
 
 @cli.command()
 @click.pass_obj
 def info(settings: Settings) -> None:
-    payload = {"traceback": settings.traceback, "pretty": settings.pretty}
+    payload = {"pretty": settings.pretty}
     click.echo(json.dumps(payload, indent=2 if settings.pretty else None))
 
 
@@ -186,20 +187,24 @@ def fail(settings: Settings) -> None:
 
 
 def main() -> int:
-    overrides = {"traceback": True, "traceback_force_color": True}
+    # Parse --traceback early before entering cli_session
+    traceback = "--traceback" in sys.argv
+    argv = [arg for arg in sys.argv[1:] if arg != "--traceback"]
+
+    overrides = {"traceback": traceback, "traceback_force_color": traceback}
     signals: list[SignalSpec] = default_signal_specs()
     with cli_session(overrides=overrides) as execute:
-        return execute(cli, signal_specs=signals)
+        return execute(cli, argv=argv, signal_specs=signals)
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
 ```
 
-This version wires configuration overrides, custom signal specs, and multiple
-commands into a single composition point—mirroring how a production CLI can
-layer policy logic around Click while still delegating exit-code translation to
-`lib_cli_exit_tools`.
+This version parses `--traceback` early (before Click sees it), then wires
+configuration overrides, custom signal specs, and multiple commands into a
+single composition point—mirroring how a production CLI can layer policy logic
+around Click while still delegating exit-code translation to `lib_cli_exit_tools`.
 
 #### 4. Custom signal handlers
 
@@ -214,7 +219,7 @@ import signal
 from contextlib import ExitStack
 from typing import Callable
 
-import click
+import rich_click as click
 
 from lib_cli_exit_tools import SignalSpec, default_signal_specs, run_cli
 
@@ -234,6 +239,8 @@ def custom_signal_specs() -> list[SignalSpec]:
             )
         )
     return specs
+
+
 def install_custom_signals(specs: list[SignalSpec] | None) -> Callable[[], None]:
     stack = ExitStack()
 
@@ -441,11 +448,11 @@ Compute a platform-aware exit status for arbitrary exceptions (errno mappings on
 Parameters:
 - `exc`: Exception instance to classify.
 
-### `print_exception_message(trace_back=config.traceback, length_limit=500, stream=None) -> None`
+### `print_exception_message(trace_back=None, length_limit=500, stream=None) -> None`
 Emit the active exception using Rich formatting. Produces a coloured traceback when `trace_back` is `True`, otherwise prints a truncated summary in red. Respects `config.traceback_force_color` and mirrors the behaviour of `handle_cli_exception` (tracebacks are rendered before the helper returns an exit status).
 
 Parameters:
-- `trace_back`: Toggle between full traceback rendering (`True`) and short summary (`False`).
+- `trace_back`: Toggle between full traceback rendering (`True`) and short summary (`False`). When `None` (default), uses `config.traceback`.
 - `length_limit`: Maximum characters for summary output.
 - `stream`: Target text stream; defaults to `sys.stderr`.
 
@@ -520,7 +527,8 @@ from __future__ import annotations
 
 from typing import Sequence
 
-import click
+import rich_click as click
+
 import lib_cli_exit_tools
 
 from . import __init__conf__
@@ -577,7 +585,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
 ```
 
-When installed, the generated console scripts (`lib-cli-exit-tools`, `cli-exit-tools`, `lib_cli_exit_tools`) will import `your_package.cli:main`, and `python -m your_package` will follow the same code path via `__main__.py`.
+When installed, your package's console scripts (defined in `pyproject.toml`) will import `your_package.cli:main`, and `python -m your_package` will follow the same code path via `__main__.py`.
 
 ## Exit Codes
 
@@ -606,5 +614,4 @@ When installed, the generated console scripts (`lib-cli-exit-tools`, `cli-exit-t
 - [CONTRIBUTING](CONTRIBUTING.md)
 - [DEVELOPMENT](DEVELOPMENT.md)
 - [MODULE REFERENCE](docs/system-design/module_reference.md)
-- [AGENTS_README](AGENTS_README.md)
 - [LICENSE](LICENSE)

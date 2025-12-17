@@ -3,6 +3,23 @@
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [2.2.3] - 2025-12-17
+
+### Fixed
+- Corrected README examples to use `rich_click` instead of plain `click` for consistency with library internals.
+- Fixed Example 2 (cli_session) to avoid nested `run_cli` calls.
+- Fixed Example 3 (multi-command CLI) so `--traceback` flag actually controls traceback display.
+- Added missing blank line in Example 4 (custom signal handlers).
+- Updated `print_exception_message` API reference signature to show `trace_back=None` default.
+
+### Changed
+- Updated CLAUDE.md with correct `docs/system-design/` path and added missing `python_data_architecture_enforcement.md` guideline.
+- Removed irrelevant Documentation & Translations section from CLAUDE.md.
+- Updated INSTALL.md to list all three console script entry points consistently.
+
+### Security
+- Added filelock CVE-2025-68146 to pip-audit ignore list (transitive dev dependency, fix pending upstream).
+
 ## [2.2.2] - 2025-12-12
 
 ### Changed

@@ -22,7 +22,7 @@ When working with Python code:
 - `python_clean_code.md`
 - `python_small_functions_style.md`
 - `python_libraries_to_use.md`
-- `python_structure_template.md`
+- `python_data_architecture_enforcement.md`
 
 ### Additional Guidelines
 - `self_documenting.md`
@@ -38,9 +38,12 @@ lib_cli_exit_tools/
 │   └── workflows/              # GitHub Actions CI/CD workflows
 ├── .devcontainer/              # Dev container configuration
 ├── docs/                       # Project documentation
-│   └── systemdesign/           # System design documents
+│   └── system-design/          # System design documents
 ├── notebooks/                  # Jupyter notebooks for experiments
 ├── scripts/                    # Build and automation scripts
+│   ├── __init__.py            # Package marker
+│   ├── __main__.py            # Module entry point
+│   ├── _utils.py              # Shared utilities
 │   ├── build.py               # Build wheel/sdist
 │   ├── bump.py                # Version bump (generic)
 │   ├── bump_major.py          # Bump major version
@@ -60,8 +63,7 @@ lib_cli_exit_tools/
 │   ├── target_metadata.py     # Metadata generation
 │   ├── test.py                # Run tests with coverage
 │   ├── toml_config.py         # TOML configuration utilities
-│   ├── version_current.py     # Print current version
-│   └── _utils.py              # Shared utilities
+│   └── version_current.py     # Print current version
 ├── src/
 │   └── lib_cli_exit_tools/    # Main Python package
 │       ├── __init__.py        # Package initialization
@@ -141,18 +143,6 @@ Apply principles from `python_clean_architecture.md` when designing and implemen
 - `.env` files are for local tooling only (CodeCov tokens, etc.)
 - **NEVER** commit secrets to version control
 - Rich logging should sanitize payloads before rendering
-
-## Documentation & Translations
-
-### Web Documentation
-- Update only English docs under `/website/docs`
-- Other languages are translated automatically
-- When in doubt, ask before modifying non-English documentation
-
-### App UI Strings (i18n)
-- Update only `sources/_locales/en` for string changes
-- Other languages are translated automatically
-- When in doubt, ask before modifying non-English locales
 
 ## Commit & Push Policy
 
