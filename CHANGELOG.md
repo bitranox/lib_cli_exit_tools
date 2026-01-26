@@ -3,6 +3,12 @@
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [2.2.4] - 2026-01-26
+
+### Changed
+- Updated dependencies.
+- Excluded `scripts/` from pyright, pytest, and CI/CD test collection.
+
 ## [2.2.3] - 2025-12-17
 
 ### Fixed
