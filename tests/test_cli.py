@@ -16,10 +16,18 @@ from typing import Any
 import pytest
 from click.testing import CliRunner, Result
 
+import rich_click as click
+from rich_click import rich_click as rich_config
+
 import lib_cli_exit_tools
 from lib_cli_exit_tools import __init__conf__ as metadata
 from lib_cli_exit_tools import cli as cli_mod
 from lib_cli_exit_tools.application import runner as runner_mod
+from lib_cli_exit_tools.cli.styling import (
+    _snapshot_rich_click_options,  # pyright: ignore[reportPrivateUsage]
+    _stream_supports_utf,  # pyright: ignore[reportPrivateUsage]
+    _temporary_rich_click_configuration,  # pyright: ignore[reportPrivateUsage]
+)
 
 
 # =============================================================================
@@ -215,25 +223,25 @@ def test_unknown_command_shows_helpful_message(cli_runner: CliRunner, strip_ansi
 @pytest.mark.os_agnostic
 def test_stream_supports_utf_returns_true_for_utf8() -> None:
     stream = type("Stream", (), {"encoding": "UTF-8"})()
-    assert cli_mod._stream_supports_utf(stream) is True  # pyright: ignore[reportPrivateUsage]
+    assert _stream_supports_utf(stream) is True
 
 
 @pytest.mark.os_agnostic
 def test_stream_supports_utf_returns_true_for_utf16() -> None:
     stream = type("Stream", (), {"encoding": "utf-16"})()
-    assert cli_mod._stream_supports_utf(stream) is True  # pyright: ignore[reportPrivateUsage]
+    assert _stream_supports_utf(stream) is True
 
 
 @pytest.mark.os_agnostic
 def test_stream_supports_utf_returns_false_for_latin1() -> None:
     stream = type("Stream", (), {"encoding": "latin-1"})()
-    assert cli_mod._stream_supports_utf(stream) is False  # pyright: ignore[reportPrivateUsage]
+    assert _stream_supports_utf(stream) is False
 
 
 @pytest.mark.os_agnostic
 def test_stream_supports_utf_returns_false_for_ascii() -> None:
     stream = type("Stream", (), {"encoding": "ascii"})()
-    assert cli_mod._stream_supports_utf(stream) is False  # pyright: ignore[reportPrivateUsage]
+    assert _stream_supports_utf(stream) is False
 
 
 # =============================================================================
@@ -249,18 +257,18 @@ def test_ascii_streams_disable_force_terminal(monkeypatch: pytest.MonkeyPatch) -
         def isatty(self) -> bool:
             return False
 
-    original = cli_mod._snapshot_rich_click_options()  # pyright: ignore[reportPrivateUsage]
+    original = _snapshot_rich_click_options()
 
     def _get_dummy_stream(name: str) -> DummyStream:
         return DummyStream()
 
-    monkeypatch.setattr(cli_mod.click, "get_text_stream", _get_dummy_stream)
+    monkeypatch.setattr(click, "get_text_stream", _get_dummy_stream)
 
-    with cli_mod._temporary_rich_click_configuration():  # pyright: ignore[reportPrivateUsage]
-        assert cli_mod.rich_config.FORCE_TERMINAL is False
+    with _temporary_rich_click_configuration():
+        assert rich_config.FORCE_TERMINAL is False
 
     for key, value in original.items():
-        assert getattr(cli_mod.rich_config, key) == value
+        assert getattr(rich_config, key) == value
 
 
 @pytest.mark.os_agnostic
@@ -271,18 +279,18 @@ def test_ascii_streams_disable_color_system(monkeypatch: pytest.MonkeyPatch) -> 
         def isatty(self) -> bool:
             return False
 
-    original = cli_mod._snapshot_rich_click_options()  # pyright: ignore[reportPrivateUsage]
+    original = _snapshot_rich_click_options()
 
     def _get_dummy_stream(name: str) -> DummyStream:
         return DummyStream()
 
-    monkeypatch.setattr(cli_mod.click, "get_text_stream", _get_dummy_stream)
+    monkeypatch.setattr(click, "get_text_stream", _get_dummy_stream)
 
-    with cli_mod._temporary_rich_click_configuration():  # pyright: ignore[reportPrivateUsage]
-        assert cli_mod.rich_config.COLOR_SYSTEM is None
+    with _temporary_rich_click_configuration():
+        assert rich_config.COLOR_SYSTEM is None
 
     for key, value in original.items():
-        assert getattr(cli_mod.rich_config, key) == value
+        assert getattr(rich_config, key) == value
 
 
 @pytest.mark.os_agnostic
@@ -293,15 +301,15 @@ def test_utf8_tty_streams_preserve_color_system(monkeypatch: pytest.MonkeyPatch)
         def isatty(self) -> bool:
             return True
 
-    original = cli_mod._snapshot_rich_click_options()  # pyright: ignore[reportPrivateUsage]
+    original = _snapshot_rich_click_options()
 
     def _get_fancy_stream(name: str) -> FancyStream:
         return FancyStream()
 
-    monkeypatch.setattr(cli_mod.click, "get_text_stream", _get_fancy_stream)
+    monkeypatch.setattr(click, "get_text_stream", _get_fancy_stream)
 
-    with cli_mod._temporary_rich_click_configuration():  # pyright: ignore[reportPrivateUsage]
-        assert cli_mod.rich_config.COLOR_SYSTEM == original.get("COLOR_SYSTEM")
+    with _temporary_rich_click_configuration():
+        assert rich_config.COLOR_SYSTEM == original.get("COLOR_SYSTEM")
 
     for key, value in original.items():
-        assert getattr(cli_mod.rich_config, key) == value
+        assert getattr(rich_config, key) == value

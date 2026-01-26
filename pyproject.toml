@@ -167,6 +167,7 @@ forbidden_modules = [
 # CVE-2026-21441: urllib3 <2.6.3, transitive dev dependency
 # CVE-2026-22702: virtualenv <20.36.1, transitive dev dependency
 # CVE-2026-24049: wheel <0.46.2, build-time dependency
+# CVE-2026-24486: python-multipart <0.0.22, transitive dev dependency
 ignore-vulns = [
   "GHSA-4xh5-x5gv-qwph",
   "PYSEC-2022-42969",
@@ -179,4 +180,5 @@ ignore-vulns = [
   "CVE-2026-21441",
   "CVE-2026-22702",
   "CVE-2026-24049",
+  "CVE-2026-24486",
 ]
