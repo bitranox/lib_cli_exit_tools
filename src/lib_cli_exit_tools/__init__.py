@@ -17,6 +17,7 @@ from . import lib_cli_exit_tools as _facade
 # the facade module. Attributes are assigned explicitly so static type checkers
 # understand the exports, while the debug assertion keeps this module aligned
 # with the facade surface.
+ExitCodeStyle = _facade.ExitCodeStyle
 CliSignalError = _facade.CliSignalError
 SigBreakInterrupt = _facade.SigBreakInterrupt
 SigIntInterrupt = _facade.SigIntInterrupt

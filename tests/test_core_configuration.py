@@ -14,6 +14,7 @@ from collections.abc import Iterator
 import pytest
 
 from lib_cli_exit_tools.core import configuration as cfg
+from lib_cli_exit_tools.core.configuration import ExitCodeStyle
 
 
 # =============================================================================
@@ -25,7 +26,7 @@ from lib_cli_exit_tools.core import configuration as cfg
 def modified_config() -> Iterator[None]:
     """Modify all config fields to non-default values."""
     cfg.config.traceback = True
-    cfg.config.exit_code_style = "sysexits"
+    cfg.config.exit_code_style = ExitCodeStyle.SYSEXITS
     cfg.config.broken_pipe_exit_code = 0
     cfg.config.traceback_force_color = True
     yield
@@ -46,7 +47,7 @@ def test_reset_restores_traceback_to_false(modified_config: None) -> None:
 @pytest.mark.os_agnostic
 def test_reset_restores_exit_code_style_to_errno(modified_config: None) -> None:
     cfg.reset_config()
-    assert cfg.config.exit_code_style == "errno"
+    assert cfg.config.exit_code_style == ExitCodeStyle.ERRNO
 
 
 @pytest.mark.os_agnostic
@@ -132,9 +133,9 @@ def test_snapshot_captures_current_traceback_value(reset_config: None) -> None:
 
 @pytest.mark.os_agnostic
 def test_snapshot_captures_current_exit_code_style(reset_config: None) -> None:
-    cfg.config.exit_code_style = "sysexits"
+    cfg.config.exit_code_style = ExitCodeStyle.SYSEXITS
     snapshot = cfg._snapshot_current_settings()  # pyright: ignore[reportPrivateUsage]
-    assert snapshot["exit_code_style"] == "sysexits"
+    assert snapshot["exit_code_style"] == ExitCodeStyle.SYSEXITS
 
 
 @pytest.mark.os_agnostic

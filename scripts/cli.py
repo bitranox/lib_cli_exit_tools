@@ -97,7 +97,10 @@ click.rich_click.GROUP_ARGUMENTS_OPTIONS = True
 
 @click.group(help="Automation toolbox for project workflows.")
 def main() -> None:
-    """Entry point for the scripts CLI."""
+    """Entry point for the scripts CLI.
+
+    Ctrl-C exits with code 130 (POSIX SIGINT convention).
+    """
 
 
 @main.command(name="help", help="Show automation target summary")

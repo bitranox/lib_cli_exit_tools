@@ -19,7 +19,7 @@ import os
 import subprocess  # nosec B404 - imported for CalledProcessError type inspection
 from typing import Callable, Iterable, Mapping
 
-from .configuration import config
+from .configuration import ExitCodeStyle, config
 
 __all__ = ["get_system_exit_code"]
 
@@ -217,7 +217,7 @@ def _code_from_sysexits_mode(exc: BaseException) -> int | None:
     Side Effects:
         None.
     """
-    if config.exit_code_style != "sysexits":
+    if config.exit_code_style != ExitCodeStyle.SYSEXITS:
         return None
     return _sysexits_resolved_code(exc)
 

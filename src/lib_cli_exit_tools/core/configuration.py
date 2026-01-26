@@ -23,9 +23,25 @@ from __future__ import annotations
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, fields
-from typing import Literal, TypedDict
+from enum import Enum
+from typing import TypedDict
 
-__all__ = ["_Config", "config", "config_overrides", "reset_config"]
+__all__ = ["ExitCodeStyle", "_Config", "config", "config_overrides", "reset_config"]
+
+
+class ExitCodeStyle(str, Enum):
+    """Exit-code mapping strategy selector.
+
+    Why:
+        Replace raw string literals with a closed set of values so comparisons
+        are type-safe and spelling mistakes are caught at import time.
+    Members:
+        ERRNO: Use POSIX/Windows errno-based exit codes (default).
+        SYSEXITS: Use BSD sysexits.h conventions for shell-centric workflows.
+    """
+
+    ERRNO = "errno"
+    SYSEXITS = "sysexits"
 
 
 class ConfigSnapshot(TypedDict):
@@ -43,7 +59,7 @@ class ConfigSnapshot(TypedDict):
     """
 
     traceback: bool
-    exit_code_style: Literal["errno", "sysexits"]
+    exit_code_style: ExitCodeStyle
     broken_pipe_exit_code: int
     traceback_force_color: bool
 
@@ -77,7 +93,7 @@ class _Config:
     """
 
     traceback: bool = False
-    exit_code_style: Literal["errno", "sysexits"] = "errno"
+    exit_code_style: ExitCodeStyle = ExitCodeStyle.ERRNO
     broken_pipe_exit_code: int = 141
     traceback_force_color: bool = False
 

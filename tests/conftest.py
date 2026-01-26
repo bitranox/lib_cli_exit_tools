@@ -17,6 +17,7 @@ import pytest
 from click.testing import CliRunner
 
 from lib_cli_exit_tools.core import configuration as cfg
+from lib_cli_exit_tools.core.configuration import ExitCodeStyle
 
 
 # =============================================================================
@@ -105,6 +106,6 @@ def isolated_traceback_config() -> Iterator[None]:
 @pytest.fixture
 def sysexits_mode() -> Iterator[None]:
     """Enable sysexits mode for the duration of a test."""
-    cfg.config.exit_code_style = "sysexits"
+    cfg.config.exit_code_style = ExitCodeStyle.SYSEXITS
     yield
     cfg.reset_config()

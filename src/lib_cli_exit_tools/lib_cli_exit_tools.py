@@ -37,10 +37,11 @@ from .application.runner import (
     print_exception_message,
     run_cli,
 )
-from .core.configuration import config, config_overrides, reset_config
+from .core.configuration import ExitCodeStyle, config, config_overrides, reset_config
 from .core.exit_codes import get_system_exit_code
 
 __all__ = [
+    "ExitCodeStyle",
     "config",
     "get_system_exit_code",
     "print_exception_message",

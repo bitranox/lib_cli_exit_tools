@@ -1,0 +1,38 @@
+{
+  "pass": 1,
+  "total_violations": 0,
+  "files": {
+    "src/lib_cli_exit_tools/core/configuration.py": {
+      "violations": [],
+      "status": "clean"
+    },
+    "src/lib_cli_exit_tools/core/exit_codes.py": {
+      "violations": [],
+      "status": "clean"
+    },
+    "src/lib_cli_exit_tools/application/runner.py": {
+      "violations": [],
+      "status": "clean"
+    },
+    "src/lib_cli_exit_tools/__init__.py": {
+      "violations": [],
+      "status": "clean"
+    },
+    "src/lib_cli_exit_tools/__init__conf__.py": {
+      "violations": [],
+      "status": "clean"
+    },
+    "src/lib_cli_exit_tools/cli.py": {
+      "violations": [],
+      "status": "clean"
+    },
+    "src/lib_cli_exit_tools/lib_cli_exit_tools.py": {
+      "violations": [],
+      "status": "clean"
+    },
+    "src/lib_cli_exit_tools/adapters/signals.py": {
+      "violations": [],
+      "status": "clean"
+    }
+  }
+}

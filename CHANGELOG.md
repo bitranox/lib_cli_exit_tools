@@ -2,12 +2,18 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [unreleased] - 2026-01-27
+- Enforced data architecture: introduced `ExitCodeStyle(str, Enum)` to replace `Literal["errno", "sysexits"]` string literals across configuration, exit codes, and session overrides.
+- Replaced `Mapping[str, object]` with typed `SessionOverrides` in `cli_session` and internal helpers.
+- Removed `_CONFIG_TRACEBACK` / `_CONFIG_TRACEBACK_FORCE_COLOR` string constants in favour of typed `SessionOverrides` key access.
+- Re-exported `ExitCodeStyle` through the public API facade.
 
 ## [2.2.4] - 2026-01-26
 
 ### Changed
 - Updated dependencies.
 - Excluded `scripts/` from pyright, pytest, and CI/CD test collection.
+- Ctrl-C in scripts now exits with code 130 (POSIX SIGINT convention) instead of Click's default exit code 1.
 
 ## [2.2.3] - 2025-12-17
 
