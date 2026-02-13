@@ -2,11 +2,22 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [unreleased] - 2026-01-27
-- Enforced data architecture: introduced `ExitCodeStyle(str, Enum)` to replace `Literal["errno", "sysexits"]` string literals across configuration, exit codes, and session overrides.
-- Replaced `Mapping[str, object]` with typed `SessionOverrides` in `cli_session` and internal helpers.
-- Removed `_CONFIG_TRACEBACK` / `_CONFIG_TRACEBACK_FORCE_COLOR` string constants in favour of typed `SessionOverrides` key access.
-- Re-exported `ExitCodeStyle` through the public API facade.
+## [Unreleased]
+
+## [2.3.0] - 2026-02-13
+
+### Added
+- `ExitCodeStyle` enum (`str, Enum`) replacing `Literal["errno", "sysexits"]` string literals, re-exported through the public API facade.
+- New `cli/` package structure splitting the monolithic `cli.py` into `group.py`, `commands.py`, and `styling.py` with backward-compatible re-exports.
+
+### Changed
+- Replaced `Mapping[str, object]` with typed `SessionOverrides` in `cli_session` and internal helpers for stricter type safety.
+- Removed `_CONFIG_TRACEBACK` / `_CONFIG_TRACEBACK_FORCE_COLOR` string constants in favour of direct `SessionOverrides` key access.
+- Migrated `scripts/` to external submodule; build automation now uses `uvx bmk`.
+- Updated GitHub Actions CI/CD workflows and removed legacy backup workflow files.
+
+### Security
+- Added CVE-2026-1703, CVE-2026-25990, and CVE-2026-26007 to pip-audit ignore list (transitive dev dependencies, not runtime).
 
 ## [2.2.4] - 2026-01-26
 

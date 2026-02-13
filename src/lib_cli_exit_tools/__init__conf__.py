@@ -24,7 +24,7 @@ name = "lib_cli_exit_tools"
 #: Human-readable summary shown in CLI help output.
 title = "CLI exit handling helpers: clean signals, exit codes, and error printing"
 #: Current release version pulled from ``pyproject.toml`` by automation.
-version = "2.2.4"
+version = "2.3.0"
 #: Repository homepage presented to users.
 homepage = "https://github.com/bitranox/lib_cli_exit_tools"
 #: Author attribution surfaced in CLI output.
