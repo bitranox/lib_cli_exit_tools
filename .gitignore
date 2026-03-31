@@ -180,3 +180,5 @@ pdm.lock
 uv.lock
 /.github_bak/
 prompts.md
+CLAUDE.md
+.claude/
