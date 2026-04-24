@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import sys
 from contextlib import contextmanager, nullcontext, suppress
-from typing import Callable, ContextManager, Iterable, Iterator, Literal, Protocol, Sequence, TextIO, TypedDict, cast
+from typing import Callable, ContextManager, Generator, Iterable, Literal, Protocol, Sequence, TextIO, TypedDict, cast
 
 import rich_click as click
 from rich_click import rich_click as rich_config
@@ -461,7 +461,7 @@ def cli_session(
     verbose_limit: int = 10_000,
     overrides: SessionOverrides | None = None,
     restore: bool = True,
-) -> Iterator[
+) -> Generator[
     Callable[
         [
             ClickCommand,
@@ -571,7 +571,7 @@ def _session_config_manager(applied: SessionOverrides, restore: bool) -> Context
 
 
 @contextmanager
-def _apply_overrides_without_restore(applied: SessionOverrides) -> Iterator[None]:
+def _apply_overrides_without_restore(applied: SessionOverrides) -> Generator[None]:
     """Apply overrides without restoring prior state on exit.
 
     Parameters:

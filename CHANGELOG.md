@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [2.3.1] - 2026-04-24
+
+### Fixed
+- Replaced `Iterator[...]` with `Generator[...]` in return annotations of `@contextmanager`-decorated functions (`config_overrides`, `cli_session`, `_apply_overrides_without_restore`, `_temporary_rich_click_configuration`) to satisfy pyright 1.1.409's new deprecation check that was breaking CI.
+
+### Security
+- Refreshed pip-audit `ignore-vulns`: dropped entries whose packages are now at fixed versions; added dev/env-only exclusions for authlib (GHSA-jj8c-mmj3-mmgv), cryptography (CVE-2026-39892), lxml (CVE-2026-41066), Pillow (CVE-2026-40192), python-multipart (CVE-2026-40347), and uv (GHSA-pjjw-68hj-v9mw). None of these packages are runtime dependencies of `lib_cli_exit_tools`.
+
+### Changed
+- Bumped dev dependency minimums in `pyproject.toml` and refreshed the BMK Makefile wrapper to 2.9.1 (persistent `uv tool install`).
+
 ## [2.3.0] - 2026-02-13
 
 ### Added

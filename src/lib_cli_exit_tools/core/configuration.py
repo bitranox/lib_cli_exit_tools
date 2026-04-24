@@ -20,7 +20,7 @@ System Integration:
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping
+from collections.abc import Generator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, fields
 from enum import Enum
@@ -156,7 +156,7 @@ def reset_config() -> None:
 
 
 @contextmanager
-def config_overrides(**overrides: object) -> Iterator[_Config]:
+def config_overrides(**overrides: object) -> Generator[_Config]:
     """Snapshot configuration state and optionally apply temporary overrides."""
 
     _reject_unknown_fields(overrides)

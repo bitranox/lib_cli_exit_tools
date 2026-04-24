@@ -16,7 +16,7 @@ System Integration:
 from __future__ import annotations
 
 from contextlib import contextmanager
-from typing import Any, Iterator, TypedDict
+from typing import Any, Generator, TypedDict
 
 import rich_click as click
 from rich_click import rich_click as rich_config
@@ -97,7 +97,7 @@ def _restore_rich_click_options(snapshot: RichClickSnapshot) -> None:
 
 
 @contextmanager
-def _temporary_rich_click_configuration() -> Iterator[None]:  # pyright: ignore[reportUnusedFunction]
+def _temporary_rich_click_configuration() -> Generator[None]:  # pyright: ignore[reportUnusedFunction]
     """Apply plain-output safeguards and restore rich-click globals afterwards."""
 
     snapshot = _snapshot_rich_click_options()
