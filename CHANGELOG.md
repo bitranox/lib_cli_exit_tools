@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [2.3.2] 2026-06-14
+
+### Changed
+- Added a `cli/typed_click.py` facade that wraps rich-click's `option` / `version_option` decorators behind explicit, fully-known signatures. This keeps the CLI layer clean under pyright 1.1.410 strict mode (which reports `reportUnknownMemberType` for rich-click's re-exported click decorators) without disabling the rule — the single `# pyright: ignore` is isolated to the facade boundary.
+
 ## [2.3.1] - 2026-04-24
 
 ### Fixed
