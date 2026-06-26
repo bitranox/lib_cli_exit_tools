@@ -182,3 +182,5 @@ uv.lock
 prompts.md
 CLAUDE.md
 .claude/
+# Local, per-developer settings (Claude Code etc.) - never commit
+*.local.json
