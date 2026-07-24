@@ -5,9 +5,9 @@ Purpose:
     handling, traceback rendering, and exit-code translation across entry
     points.
 Contents:
-    * :func:`handle_cli_exception` – maps exceptions to exit codes and renders
+    * :func:`handle_cli_exception` - maps exceptions to exit codes and renders
       diagnostics.
-    * :func:`run_cli` – orchestrates signal installation, command execution, and
+    * :func:`run_cli` - orchestrates signal installation, command execution, and
       cleanup.
     * Supporting utilities for Rich-based output and stream management.
 System Integration:
@@ -19,14 +19,15 @@ System Integration:
 from __future__ import annotations
 
 import sys
-from contextlib import contextmanager, nullcontext, suppress
-from typing import Callable, ContextManager, Generator, Iterable, Literal, Protocol, Sequence, TextIO, TypedDict, cast
+from collections.abc import Callable, Generator, Iterable, Sequence
+from contextlib import AbstractContextManager, contextmanager, nullcontext, suppress
+from typing import Literal, Protocol, TextIO, TypedDict, cast
 
 import rich_click as click
-from rich_click import rich_click as rich_config
 from rich.console import Console
 from rich.text import Text
 from rich.traceback import Traceback
+from rich_click import rich_click as rich_config
 
 from ..adapters.signals import SignalSpec, default_signal_specs, install_signal_handlers
 from ..core.configuration import ExitCodeStyle, config, config_overrides
@@ -57,18 +58,18 @@ class ClickCommand(Protocol):
         args: Sequence[str] | None = ...,
         prog_name: str | None = ...,
         complete_var: str | None = ...,
-        standalone_mode: bool = ...,
+        standalone_mode: bool = ...,  # noqa: FBT001 - mirrors Click's actual positional main() signature
         **_: object,
     ) -> None: ...
 
 
 __all__ = [
+    "SessionOverrides",
+    "cli_session",
+    "flush_streams",
     "handle_cli_exception",
     "print_exception_message",
-    "flush_streams",
     "run_cli",
-    "cli_session",
-    "SessionOverrides",
 ]
 
 
@@ -162,7 +163,7 @@ def _build_console(
 
     target_stream = stream or sys.stderr
     force_flag = rich_config.FORCE_TERMINAL if force_terminal is None else force_terminal
-    default_color = cast(RichColorSystem | None, getattr(rich_config, "COLOR_SYSTEM", None))
+    default_color = cast("RichColorSystem | None", getattr(rich_config, "COLOR_SYSTEM", None))
     color_flag = default_color if color_system is None else color_system
     return Console(
         file=target_stream,
@@ -216,6 +217,7 @@ def _decode_output(output: object) -> str | None:
 
 
 def print_exception_message(
+    *,
     trace_back: bool | None = None,
     length_limit: int = 500,
     stream: TextIO | None = None,
@@ -245,10 +247,10 @@ def print_exception_message(
     target_stream = _target_stream(stream)
     _emit_subprocess_output(exc_info, target_stream)
 
-    render_traceback = _resolve_traceback_choice(trace_back)
+    render_traceback = _resolve_traceback_choice(trace_back=trace_back)
     console = _console_for_tracebacks(target_stream)
 
-    _render_exception_view(console, exc_info, render_traceback, length_limit)
+    _render_exception_view(console, exc_info, render_traceback=render_traceback, length_limit=length_limit)
     _finalise_console(console)
     flush_streams()
 
@@ -263,7 +265,7 @@ def _target_stream(stream: TextIO | None) -> TextIO:
     return stream or sys.stderr
 
 
-def _resolve_traceback_choice(trace_back: bool | None) -> bool:
+def _resolve_traceback_choice(*, trace_back: bool | None) -> bool:
     """Decide whether to render a traceback based on explicit or global flags."""
     return config.traceback if trace_back is None else trace_back
 
@@ -283,6 +285,7 @@ def _console_for_tracebacks(stream: TextIO) -> Console:
 def _render_exception_view(
     console: Console,
     exc_info: BaseException,
+    *,
     render_traceback: bool,
     length_limit: int,
 ) -> None:
@@ -510,7 +513,7 @@ def cli_session(
     """
 
     applied = _normalise_session_overrides(overrides)
-    manager = _session_config_manager(applied, restore)
+    manager = _session_config_manager(applied, restore=restore)
 
     with manager:
         handler = _session_exception_handler(summary_limit, verbose_limit)
@@ -561,7 +564,7 @@ def _normalise_session_overrides(overrides: SessionOverrides | None) -> SessionO
     return overrides
 
 
-def _session_config_manager(applied: SessionOverrides, restore: bool) -> ContextManager[object]:
+def _session_config_manager(applied: SessionOverrides, *, restore: bool) -> AbstractContextManager[object]:
     """Return the context manager used to apply session overrides."""
     if restore:
         return config_overrides(**applied)
@@ -630,7 +633,7 @@ def run_cli(
 
     specs = _resolve_signal_specs(signal_specs)
     handler = _choose_exception_handler(exception_handler, specs)
-    restorer = _install_signal_handlers_when_requested(install_signals, signal_installer, specs)
+    restorer = _install_signal_handlers_when_requested(install_signals=install_signals, signal_installer=signal_installer, specs=specs)
 
     try:
         return _run_command_with_handler(cli, argv, prog_name, handler)
@@ -658,6 +661,7 @@ def _default_exception_handler(specs: Sequence[SignalSpec]) -> Callable[[BaseExc
 
 
 def _install_signal_handlers_when_requested(
+    *,
     install_signals: bool,
     signal_installer: Callable[[Sequence[SignalSpec] | None], Callable[[], None]] | None,
     specs: Sequence[SignalSpec],
@@ -678,7 +682,7 @@ def _run_command_with_handler(
     """Invoke the Click command and delegate failures to ``handler``."""
     try:
         _invoke_command(cli, argv, prog_name)
-    except BaseException as exc:  # noqa: BLE001 - single funnel for exit codes
+    except BaseException as exc:  # single funnel for exit codes; handler translates every exception type
         return handler(exc)
     return 0
 

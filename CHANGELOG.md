@@ -4,10 +4,21 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [2.3.3] 2026-07-24 16:09:16
+
+### Fixed
+- `print_info()` now writes via `sys.stdout.write()` instead of `print()`, and `print_exception_message()`'s `trace_back` / `length_limit` / `stream` parameters are keyword-only, along with several private `application/runner.py` helpers (`_resolve_traceback_choice`, `_render_exception_view`, `_session_config_manager`, `_install_signal_handlers_when_requested`) - closing the ruff PLR0917/FBT001 boolean-positional-argument findings that a newer ruff started reporting. All call sites (in this repo and downstream) already passed these by keyword, so this is not a breaking change.
+- Replaced `typing.Callable`/`Iterable`/`Sequence`/`ContextManager` imports with their `collections.abc`/`contextlib` equivalents (ruff UP035), sorted `__all__` lists (RUF022), quoted `typing.cast()` type arguments (TC006), and moved a handful of type-checking-only imports behind `TYPE_CHECKING` (TC003) across `src` and `tests`.
+- Replaced ambiguous en-dash characters in docstrings with ASCII hyphens (RUF002).
+
+### Changed
+- Added an explicit, curated `[tool.ruff.lint].select` (the fleet-standard rule set) to `pyproject.toml` instead of relying on ruff's default rule set, which had grown to roughly 900 rules on the installed ruff release and was about to make CI red on unrelated, previously-unenforced rule families. Added matching `per-file-ignores` for tests, the CLI layer, `notebooks/Quickstart.ipynb`, and `application/runner.py`'s intentionally-wide dependency-injection seams (`PLR0913`).
+- Documented the three narrow places where suppressing a lint finding is correct rather than fixing it: the `SigIntInterrupt`/`SigTermInterrupt`/`SigBreakInterrupt` exception names stay as-is (`# noqa: N818`) because renaming them would break every downstream `except Sig...Interrupt`; `getattr(signal, "SIGBREAK"/"CTRL_BREAK_EVENT")` and `getattr(exc, "winerror")` stay as `getattr()` (`# noqa: B009`) because typeshed only declares those attributes on Windows/`OSError`, so direct attribute access fails pyright strict on other platforms/types; and the `echo=lambda ...` test double stays a lambda (`# noqa: PLW0108`) because `messages.append` alone cannot accept the `err` keyword the echo protocol requires.
+
 ## [2.3.2] 2026-06-14
 
 ### Changed
-- Added a `cli/typed_click.py` facade that wraps rich-click's `option` / `version_option` decorators behind explicit, fully-known signatures. This keeps the CLI layer clean under pyright 1.1.410 strict mode (which reports `reportUnknownMemberType` for rich-click's re-exported click decorators) without disabling the rule — the single `# pyright: ignore` is isolated to the facade boundary.
+- Added a `cli/typed_click.py` facade that wraps rich-click's `option` / `version_option` decorators behind explicit, fully-known signatures. This keeps the CLI layer clean under pyright 1.1.410 strict mode (which reports `reportUnknownMemberType` for rich-click's re-exported click decorators) without disabling the rule - the single `# pyright: ignore` is isolated to the facade boundary.
 
 ## [2.3.1] - 2026-04-24
 
@@ -157,7 +168,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Changed
 - Hardened `get_system_exit_code` handling for non-integer payloads and switched OS detection to `os.name`.
 - Updated `_print_output` to decode both `bytes` and `str`, trimming assertions in favour of resilient diagnostics.
-- Standardised signal messages (“Aborted (SIGINT).”, etc.) and cached metadata lookups in `__init__conf__`.
+- Standardised signal messages ("Aborted (SIGINT).", etc.) and cached metadata lookups in `__init__conf__`.
 - Enforced an 85% coverage threshold (in line with `pyproject.toml` and Codecov settings) and removed spurious coverage pragmas to reflect the new test suite.
 - Repartitioned the library into `core`, `adapters`, and `application` layers with `lib_cli_exit_tools` acting as the facade.
 - `run_cli` now accepts injectable `exception_handler` and `signal_installer` hooks, and rich-click configuration is applied lazily from `main()`.

@@ -14,16 +14,18 @@ System Integration:
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import rich_click as click
 
-from .. import __init__conf__
-from .. import lib_cli_exit_tools
+from .. import __init__conf__, lib_cli_exit_tools
 from .commands import CLICK_CONTEXT_SETTINGS
 from .styling import _temporary_rich_click_configuration  # pyright: ignore[reportPrivateUsage]
 from .typed_click import option, version_option
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 
 @dataclass

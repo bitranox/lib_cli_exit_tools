@@ -15,8 +15,7 @@ from __future__ import annotations
 
 import rich_click as click
 
-from .. import __init__conf__
-from .. import lib_cli_exit_tools
+from .. import __init__conf__, lib_cli_exit_tools
 
 #: Help flag aliases applied to every Click command so documentation and CLI
 #: behaviour stay consistent (`-h` mirrors `--help`).

@@ -25,8 +25,8 @@ from .adapters.signals import (
     CliSignalError,
     SigBreakInterrupt,
     SigIntInterrupt,
-    SigTermInterrupt,
     SignalSpec,
+    SigTermInterrupt,
     default_signal_specs,
     install_signal_handlers,
 )
@@ -41,24 +41,24 @@ from .core.configuration import ExitCodeStyle, config, config_overrides, reset_c
 from .core.exit_codes import get_system_exit_code
 
 __all__ = [
-    "ExitCodeStyle",
-    "config",
-    "get_system_exit_code",
-    "print_exception_message",
-    "flush_streams",
-    "SignalSpec",
     "CliSignalError",
+    "ExitCodeStyle",
+    "SigBreakInterrupt",
     "SigIntInterrupt",
     "SigTermInterrupt",
-    "SigBreakInterrupt",
+    "SignalSpec",
+    "cli_session",
+    "config",
+    "config_overrides",
     "default_signal_specs",
-    "install_signal_handlers",
+    "flush_streams",
+    "get_system_exit_code",
     "handle_cli_exception",
     "i_should_fail",
-    "cli_session",
-    "run_cli",
-    "config_overrides",
+    "install_signal_handlers",
+    "print_exception_message",
     "reset_config",
+    "run_cli",
 ]
 
 PUBLIC_API = tuple(__all__)

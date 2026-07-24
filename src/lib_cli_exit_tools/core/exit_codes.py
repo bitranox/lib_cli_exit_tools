@@ -5,8 +5,8 @@ Purpose:
     exit codes, honouring both POSIX/Windows errno semantics and BSD sysexits
     conventions.
 Contents:
-    * :func:`get_system_exit_code` – primary mapping entry point.
-    * :func:`_sysexits_mapping` – internal helper for sysexits mode.
+    * :func:`get_system_exit_code` - primary mapping entry point.
+    * :func:`_sysexits_mapping` - internal helper for sysexits mode.
 System Integration:
     Used by application orchestration and CLI adapters to convert unhandled
     exceptions into numeric exit statuses while respecting
@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import os
 import subprocess  # nosec B404 - imported for CalledProcessError type inspection
-from typing import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 
 from .configuration import ExitCodeStyle, config
 
@@ -143,7 +143,7 @@ def _code_from_winerror_attribute(exc: BaseException) -> int | None:
     """
     if not hasattr(exc, "winerror"):
         return None
-    return _safe_int(getattr(exc, "winerror"))
+    return _safe_int(getattr(exc, "winerror"))  # noqa: B009 - exc is typed BaseException; only OSError carries winerror, and only on Windows
 
 
 def _code_from_broken_pipe(exc: BaseException) -> int | None:

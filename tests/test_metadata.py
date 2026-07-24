@@ -29,12 +29,12 @@ def _load_pyproject() -> dict[str, Any]:
 
 
 def _resolve_init_conf_path(pyproject: dict[str, Any]) -> Path:
-    project_table = cast(dict[str, Any], pyproject["project"])
-    tool_table = cast(dict[str, Any], pyproject.get("tool", {}))
-    hatch_table = cast(dict[str, Any], tool_table.get("hatch", {}))
-    targets_table = cast(dict[str, Any], cast(dict[str, Any], hatch_table.get("build", {})).get("targets", {}))
-    wheel_table = cast(dict[str, Any], targets_table.get("wheel", {}))
-    packages = cast(list[Any], wheel_table.get("packages", []))
+    project_table = cast("dict[str, Any]", pyproject["project"])
+    tool_table = cast("dict[str, Any]", pyproject.get("tool", {}))
+    hatch_table = cast("dict[str, Any]", tool_table.get("hatch", {}))
+    targets_table = cast("dict[str, Any]", cast("dict[str, Any]", hatch_table.get("build", {})).get("targets", {}))
+    wheel_table = cast("dict[str, Any]", targets_table.get("wheel", {}))
+    packages = cast("list[Any]", wheel_table.get("packages", []))
 
     for package_entry in packages:
         if isinstance(package_entry, str):
@@ -62,7 +62,7 @@ def _load_init_conf_metadata(init_conf_path: Path) -> dict[str, str]:
         raise AssertionError("No metadata assignments found in __init__conf__.py")
     metadata_text = "[metadata]\n" + "\n".join(fragments)
     parsed = rtoml.loads(metadata_text)
-    metadata_table = cast(dict[str, str], parsed["metadata"])
+    metadata_table = cast("dict[str, str]", parsed["metadata"])
     return metadata_table
 
 
@@ -143,7 +143,7 @@ def test_print_info_shows_author_field(capsys: pytest.CaptureFixture[str]) -> No
 @pytest.mark.os_agnostic
 def test_metadata_name_matches_pyproject() -> None:
     pyproject = _load_pyproject()
-    project_table = cast(dict[str, Any], pyproject["project"])
+    project_table = cast("dict[str, Any]", pyproject["project"])
     init_conf_path = _resolve_init_conf_path(pyproject)
     metadata = _load_init_conf_metadata(init_conf_path)
 
@@ -153,7 +153,7 @@ def test_metadata_name_matches_pyproject() -> None:
 @pytest.mark.os_agnostic
 def test_metadata_title_matches_pyproject_description() -> None:
     pyproject = _load_pyproject()
-    project_table = cast(dict[str, Any], pyproject["project"])
+    project_table = cast("dict[str, Any]", pyproject["project"])
     init_conf_path = _resolve_init_conf_path(pyproject)
     metadata = _load_init_conf_metadata(init_conf_path)
 
@@ -163,7 +163,7 @@ def test_metadata_title_matches_pyproject_description() -> None:
 @pytest.mark.os_agnostic
 def test_metadata_version_matches_pyproject() -> None:
     pyproject = _load_pyproject()
-    project_table = cast(dict[str, Any], pyproject["project"])
+    project_table = cast("dict[str, Any]", pyproject["project"])
     init_conf_path = _resolve_init_conf_path(pyproject)
     metadata = _load_init_conf_metadata(init_conf_path)
 
@@ -173,10 +173,10 @@ def test_metadata_version_matches_pyproject() -> None:
 @pytest.mark.os_agnostic
 def test_metadata_homepage_matches_pyproject_urls() -> None:
     pyproject = _load_pyproject()
-    project_table = cast(dict[str, Any], pyproject["project"])
+    project_table = cast("dict[str, Any]", pyproject["project"])
     init_conf_path = _resolve_init_conf_path(pyproject)
     metadata = _load_init_conf_metadata(init_conf_path)
-    urls = cast(dict[str, str], project_table.get("urls", {}))
+    urls = cast("dict[str, str]", project_table.get("urls", {}))
 
     assert "Homepage" in urls, "pyproject.toml must define project.urls.Homepage"
     assert metadata["homepage"] == urls["Homepage"]
@@ -185,10 +185,10 @@ def test_metadata_homepage_matches_pyproject_urls() -> None:
 @pytest.mark.os_agnostic
 def test_metadata_author_matches_pyproject() -> None:
     pyproject = _load_pyproject()
-    project_table = cast(dict[str, Any], pyproject["project"])
+    project_table = cast("dict[str, Any]", pyproject["project"])
     init_conf_path = _resolve_init_conf_path(pyproject)
     metadata = _load_init_conf_metadata(init_conf_path)
-    authors = cast(list[dict[str, str]], project_table.get("authors", []))
+    authors = cast("list[dict[str, str]]", project_table.get("authors", []))
 
     assert authors, "pyproject.toml must declare at least one author entry"
     assert metadata["author"] == authors[0]["name"]
@@ -197,10 +197,10 @@ def test_metadata_author_matches_pyproject() -> None:
 @pytest.mark.os_agnostic
 def test_metadata_author_email_matches_pyproject() -> None:
     pyproject = _load_pyproject()
-    project_table = cast(dict[str, Any], pyproject["project"])
+    project_table = cast("dict[str, Any]", pyproject["project"])
     init_conf_path = _resolve_init_conf_path(pyproject)
     metadata = _load_init_conf_metadata(init_conf_path)
-    authors = cast(list[dict[str, str]], project_table.get("authors", []))
+    authors = cast("list[dict[str, str]]", project_table.get("authors", []))
 
     assert authors, "pyproject.toml must declare at least one author entry"
     assert metadata["author_email"] == authors[0]["email"]
@@ -209,9 +209,9 @@ def test_metadata_author_email_matches_pyproject() -> None:
 @pytest.mark.os_agnostic
 def test_metadata_shell_command_is_in_pyproject_scripts() -> None:
     pyproject = _load_pyproject()
-    project_table = cast(dict[str, Any], pyproject["project"])
+    project_table = cast("dict[str, Any]", pyproject["project"])
     init_conf_path = _resolve_init_conf_path(pyproject)
     metadata = _load_init_conf_metadata(init_conf_path)
-    scripts = cast(dict[str, Any], project_table.get("scripts", {}))
+    scripts = cast("dict[str, Any]", project_table.get("scripts", {}))
 
     assert metadata["shell_command"] in scripts

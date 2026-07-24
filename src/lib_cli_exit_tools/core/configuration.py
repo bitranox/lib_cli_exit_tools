@@ -5,11 +5,11 @@ Purpose:
     adapters can toggle behaviour (tracebacks, exit codes, broken-pipe
     semantics) without re-implementing global state.
 Contents:
-    * :class:`_Config` – dataclass capturing toggleable runtime flags.
-    * :data:`config` – module-level singleton mutated by CLI adapters and tests.
-    * :func:`config_overrides` – context manager that snapshots and restores
+    * :class:`_Config` - dataclass capturing toggleable runtime flags.
+    * :data:`config` - module-level singleton mutated by CLI adapters and tests.
+    * :func:`config_overrides` - context manager that snapshots and restores
       configuration state for embedders and tests.
-    * :func:`reset_config` – helper that restores defaults defined by
+    * :func:`reset_config` - helper that restores defaults defined by
       :class:`_Config`.
 System Integration:
     Imported by higher layers (`application.runner`, `adapters.click_adapter`)
@@ -20,11 +20,13 @@ System Integration:
 
 from __future__ import annotations
 
-from collections.abc import Generator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, fields
 from enum import Enum
-from typing import TypedDict
+from typing import TYPE_CHECKING, TypedDict
+
+if TYPE_CHECKING:
+    from collections.abc import Generator, Mapping
 
 __all__ = ["ExitCodeStyle", "_Config", "config", "config_overrides", "reset_config"]
 

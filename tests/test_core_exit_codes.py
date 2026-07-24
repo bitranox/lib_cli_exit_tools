@@ -14,12 +14,12 @@ from __future__ import annotations
 import subprocess
 
 import pytest
-from hypothesis import given, strategies as st
+from hypothesis import given
+from hypothesis import strategies as st
 
 from lib_cli_exit_tools.core import configuration as cfg
 from lib_cli_exit_tools.core import exit_codes as codes
 from lib_cli_exit_tools.core.configuration import ExitCodeStyle
-
 
 # =============================================================================
 # CalledProcessError Exit Codes

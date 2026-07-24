@@ -13,8 +13,7 @@ from __future__ import annotations
 import importlib
 import runpy
 import sys
-from collections.abc import Callable
-from typing import Any, TextIO
+from typing import TYPE_CHECKING, Any, TextIO
 
 import pytest
 
@@ -23,6 +22,8 @@ from lib_cli_exit_tools import __init__conf__ as metadata
 from lib_cli_exit_tools import cli as cli_mod
 from lib_cli_exit_tools.application import runner as runner_mod
 
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 # =============================================================================
 # Fixtures
@@ -248,7 +249,7 @@ def test_missing_facade_export_raises_import_error(monkeypatch: pytest.MonkeyPat
     facade = importlib.import_module("lib_cli_exit_tools.lib_cli_exit_tools")
     original = facade.PUBLIC_API
     try:
-        monkeypatch.setattr(facade, "PUBLIC_API", original + ("absent",), raising=False)
+        monkeypatch.setattr(facade, "PUBLIC_API", (*original, "absent"), raising=False)
         with pytest.raises(ImportError, match=r"missing \['absent'\]"):
             importlib.reload(package)
     finally:

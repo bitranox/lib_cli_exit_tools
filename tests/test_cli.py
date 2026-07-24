@@ -10,12 +10,9 @@ Each test verifies exactly one CLI behavior:
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
-from click.testing import CliRunner, Result
-
 import rich_click as click
 from rich_click import rich_click as rich_config
 
@@ -29,6 +26,10 @@ from lib_cli_exit_tools.cli.styling import (
     _temporary_rich_click_configuration,  # pyright: ignore[reportPrivateUsage]
 )
 
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from click.testing import CliRunner, Result
 
 # =============================================================================
 # Main Function Delegation
@@ -309,7 +310,7 @@ def test_utf8_tty_streams_preserve_color_system(monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setattr(click, "get_text_stream", _get_fancy_stream)
 
     with _temporary_rich_click_configuration():
-        assert rich_config.COLOR_SYSTEM == original.get("COLOR_SYSTEM")
+        assert original.get("COLOR_SYSTEM") == rich_config.COLOR_SYSTEM
 
     for key, value in original.items():
         assert getattr(rich_config, key) == value

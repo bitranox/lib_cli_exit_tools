@@ -13,9 +13,9 @@ from __future__ import annotations
 import io
 import subprocess
 import sys
-from collections.abc import Callable, Sequence
 from contextlib import AbstractContextManager
 from types import SimpleNamespace
+from typing import TYPE_CHECKING
 
 import click
 import pytest
@@ -25,6 +25,8 @@ from lib_cli_exit_tools.adapters.signals import SignalSpec
 from lib_cli_exit_tools.application import runner
 from lib_cli_exit_tools.core import configuration as cfg
 
+if TYPE_CHECKING:
+    from collections.abc import Callable, Sequence
 
 # =============================================================================
 # Fixtures
@@ -42,7 +44,7 @@ class DummyCommand:
         args: Sequence[str] | None = None,
         prog_name: str | None = None,
         complete_var: str | None = None,
-        standalone_mode: bool = False,
+        standalone_mode: bool = False,  # noqa: FBT002 - mirrors Click's actual main() signature
         **_: object,
     ) -> None:
         self._behaviour()
@@ -243,7 +245,7 @@ def test_handle_exception_with_matching_signal_spec_returns_exit_code() -> None:
     result = runner.handle_cli_exception(
         RuntimeError("boom"),
         signal_specs=[spec],
-        echo=lambda message, *, err=True: messages.append(message),
+        echo=lambda message, *, err=True: messages.append(message),  # noqa: PLW0108 - `err` is required by the echo protocol; `messages.append` alone can't take it
     )
 
     assert result == 9
@@ -257,7 +259,7 @@ def test_handle_exception_with_matching_signal_spec_echoes_message() -> None:
     runner.handle_cli_exception(
         RuntimeError("boom"),
         signal_specs=[spec],
-        echo=lambda message, *, err=True: messages.append(message),
+        echo=lambda message, *, err=True: messages.append(message),  # noqa: PLW0108 - `err` is required by the echo protocol; `messages.append` alone can't take it
     )
 
     assert messages == ["gentle stop"]

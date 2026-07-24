@@ -11,7 +11,7 @@ from __future__ import annotations
 import os
 import re
 import sys
-from collections.abc import Callable, Iterator
+from typing import TYPE_CHECKING
 
 import pytest
 from click.testing import CliRunner
@@ -19,6 +19,8 @@ from click.testing import CliRunner
 from lib_cli_exit_tools.core import configuration as cfg
 from lib_cli_exit_tools.core.configuration import ExitCodeStyle
 
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterator
 
 # =============================================================================
 # OS Detection Constants

@@ -1,6 +1,6 @@
 [project]
 name = "lib_cli_exit_tools"
-version = "2.3.2"
+version = "2.3.3"
 description = "CLI exit handling helpers: clean signals, exit codes, and error printing"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -50,8 +50,8 @@ dev = [
   # "codecov-cli>=11.2.8",
   # Transitive CVE pins
   "click>=8.4.2",                # CVE-2026-7246
-  "coverage[toml]>=7.15.1",
-  "hypothesis>=6.156.6",
+  "coverage[toml]>=7.15.2",
+  "hypothesis>=6.161.2",
   "import-linter>=2.13",
   "bandit>=1.9.4",
   "pip-audit>=2.10.1",
@@ -59,7 +59,7 @@ dev = [
   "pytest>=9.1.1",
   "pytest-asyncio>=1.4.0",
   "pytest-cov>=7.1.0",
-  "ruff>=0.15.21",
+  "ruff>=0.16.0",
   "textual>=8.2.8",
   "rtoml>=0.13.0",
   "twine>=6.2.0"
@@ -83,14 +83,58 @@ include = ["src/lib_cli_exit_tools/py.typed"]
 line-length = 160
 target-version = "py310"
 
+[tool.ruff.lint]
+select = [
+  "E", "W",     # pycodestyle
+  "F",           # pyflakes
+  "I",           # isort
+  "N",           # pep8-naming
+  "UP",          # pyupgrade
+  "B",           # bugbear
+  "A",           # builtins shadowing
+  "C4",          # comprehension simplification
+  "SIM",         # simplification
+  "TCH",         # type-checking imports
+  "RUF",         # ruff-specific
+  "G",           # logging format (catches f-string in logger)
+  "T20",         # print statements
+  "PTH",         # pathlib preference
+  "PLC", "PLE",  # pylint conventions/errors
+  "S",           # flake8-bandit security checks
+  "PERF",        # performance anti-patterns
+  "ERA",         # eradicate dead/commented-out code
+  "FBT",         # boolean trap (boolean positional args)
+  "PLR",         # pylint refactor
+  "PLW",         # pylint warnings
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
 [tool.ruff.lint.per-file-ignores]
 # ignore the "unused import sys" in the jupyter notebook - which we need (it is a linter hickup)
-"notebooks/*.ipynb" = ["F401"]
+# T201: notebook cells print to show output inline, the point of a demo. FBT001/FBT003: the
+# notebook-local demo helper takes a plain bool and is called positionally for readability;
+# it is not published API, so the boolean-trap guard does not apply.
+"notebooks/*.ipynb" = ["F401", "T201", "FBT001", "FBT003"]
+# Tests: assert is standard, test fixtures have passwords, magic values are clearer inline, temp paths are fine.
+# PLC0415: local/deferred imports are a deliberate test idiom - several tests import inside the test
+# body to exercise import-time and cache behaviour, so moving them to module top would defeat intent.
+# S603: subprocess integration tests spawn sys.executable against a script the test itself wrote to
+# tmp_path - the input is trusted, not attacker-controlled.
+"tests/*.py" = ["T20", "S101", "S105", "S106", "S108", "S603", "FBT001", "FBT003", "PLR0913", "PLR2004", "PLC0415"]
+# CLI: Click framework injects boolean params; commands have many options
+"src/lib_cli_exit_tools/cli/*.py" = ["FBT001", "FBT002", "PLR0913"]
+# Application runner: run_cli/cli_session expose many independently-optional DI seams
+# (signal specs, exception handler, signal installer, argv, prog_name) by design so tests
+# can inject fakes at each seam; splitting into a config object would just move the params.
+"src/lib_cli_exit_tools/application/runner.py" = ["PLR0913"]
 
 [tool.pyright]
 typeCheckingMode = "strict"
 exclude = [
   "scripts/",
+  ".venv*",
 ]
 
 [tool.pytest.ini_options]

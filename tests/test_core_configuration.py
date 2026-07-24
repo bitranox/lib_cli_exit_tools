@@ -9,13 +9,15 @@ Each test verifies exactly one behavior of the configuration system:
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from typing import TYPE_CHECKING
 
 import pytest
 
 from lib_cli_exit_tools.core import configuration as cfg
 from lib_cli_exit_tools.core.configuration import ExitCodeStyle
 
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 # =============================================================================
 # Fixtures
@@ -107,16 +109,14 @@ def test_override_can_change_multiple_fields_at_once(reset_config: None) -> None
 
 @pytest.mark.os_agnostic
 def test_override_rejects_unknown_field_names() -> None:
-    with pytest.raises(AttributeError, match="Unknown configuration fields"):
-        with cfg.config_overrides(nonexistent_field=True):  # type: ignore[arg-type]
-            pass
+    with pytest.raises(AttributeError, match="Unknown configuration fields"), cfg.config_overrides(nonexistent_field=True):  # type: ignore[arg-type]
+        pass
 
 
 @pytest.mark.os_agnostic
 def test_override_error_message_includes_field_name() -> None:
-    with pytest.raises(AttributeError, match="imaginary"):
-        with cfg.config_overrides(imaginary=42):  # type: ignore[arg-type]
-            pass
+    with pytest.raises(AttributeError, match="imaginary"), cfg.config_overrides(imaginary=42):  # type: ignore[arg-type]
+        pass
 
 
 # =============================================================================

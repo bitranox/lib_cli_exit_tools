@@ -16,16 +16,16 @@ System Integration:
 from __future__ import annotations
 
 import signal
+from collections.abc import Callable, Iterable, Sequence
 from contextlib import ExitStack
 from dataclasses import dataclass
 from types import FrameType
-from typing import Callable, Iterable, Sequence
 
 __all__ = [
     "CliSignalError",
+    "SigBreakInterrupt",
     "SigIntInterrupt",
     "SigTermInterrupt",
-    "SigBreakInterrupt",
     "SignalSpec",
     "default_signal_specs",
     "install_signal_handlers",
@@ -43,15 +43,15 @@ class CliSignalError(RuntimeError):
     """
 
 
-class SigIntInterrupt(CliSignalError):
+class SigIntInterrupt(CliSignalError):  # noqa: N818 - public API; renaming breaks every downstream `except SigIntInterrupt`
     """Raised when the process receives ``SIGINT`` (Ctrl+C)."""
 
 
-class SigTermInterrupt(CliSignalError):
+class SigTermInterrupt(CliSignalError):  # noqa: N818 - public API; renaming breaks every downstream `except SigTermInterrupt`
     """Raised when the process receives ``SIGTERM`` (termination request)."""
 
 
-class SigBreakInterrupt(CliSignalError):
+class SigBreakInterrupt(CliSignalError):  # noqa: N818 - public API; renaming breaks every downstream `except SigBreakInterrupt`
     """Raised when the process receives ``SIGBREAK`` on Windows consoles."""
 
 
@@ -160,7 +160,7 @@ def _maybe_sigterm_spec() -> Iterable[SignalSpec]:
     """Yield the ``SIGTERM`` specification when supported by the host."""
     if hasattr(signal, "SIGTERM"):
         yield SignalSpec(
-            signum=getattr(signal, "SIGTERM"),
+            signum=signal.SIGTERM,
             exception=SigTermInterrupt,
             message="Terminated (SIGTERM/SIGBREAK).",
             exit_code=143,
@@ -171,7 +171,7 @@ def _maybe_sigbreak_spec() -> Iterable[SignalSpec]:
     """Yield the ``SIGBREAK`` specification when running on Windows."""
     if hasattr(signal, "SIGBREAK"):
         yield SignalSpec(
-            signum=getattr(signal, "SIGBREAK"),
+            signum=getattr(signal, "SIGBREAK"),  # noqa: B009 - typeshed only declares SIGBREAK on win32; direct access fails pyright on POSIX
             exception=SigBreakInterrupt,
             message="Terminated (SIGBREAK).",
             exit_code=149,

@@ -244,6 +244,7 @@ def install_custom_signals(specs: list[SignalSpec] | None) -> Callable[[], None]
     stack = ExitStack()
 
     for spec in specs or []:
+
         def _handler(signum: int, frame: object | None, *, spec: SignalSpec = spec) -> None:
             raise spec.exception(f"Signal {spec.message}")
 
@@ -289,8 +290,8 @@ lib_cli_exit_tools.config.traceback = False  # show short messages
 try:
     raise FileNotFoundError("missing.txt")
 except Exception as e:
-    code = lib_cli_exit_tools.get_system_exit_code(e)   # 2 on POSIX
-    lib_cli_exit_tools.print_exception_message()        # prints: FileNotFoundError: missing.txt
+    code = lib_cli_exit_tools.get_system_exit_code(e)  # 2 on POSIX
+    lib_cli_exit_tools.print_exception_message()  # prints: FileNotFoundError: missing.txt
     raise SystemExit(code)
 ```
 
@@ -313,9 +314,9 @@ All configuration lives on the module-level `lib_cli_exit_tools.config` object. 
 ```python
 from lib_cli_exit_tools import config
 
-config.traceback = True              # emit full tracebacks instead of short messages
+config.traceback = True  # emit full tracebacks instead of short messages
 config.exit_code_style = "sysexits"  # emit BSD-style exit codes (EX_USAGE, EX_NOINPUT, …)
-config.broken_pipe_exit_code = 0     # treat BrokenPipeError as a benign truncation
+config.broken_pipe_exit_code = 0  # treat BrokenPipeError as a benign truncation
 ```
 
 Field reference:

@@ -8,14 +8,15 @@ Each test verifies exactly one behavior of facade helpers:
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
 import lib_cli_exit_tools
 from lib_cli_exit_tools.application import runner as runner_mod
 
+if TYPE_CHECKING:
+    from collections.abc import Callable, Sequence
 
 # =============================================================================
 # Failure Helper
@@ -132,7 +133,7 @@ def test_cli_session_applies_traceback_override(monkeypatch: pytest.MonkeyPatch,
     monkeypatch.setattr(runner_mod, "run_cli", fake_run_cli)
 
     with lib_cli_exit_tools.cli_session(overrides={"traceback": True}) as execute:
-        executor = cast(Callable[..., int], execute)
+        executor = cast("Callable[..., int]", execute)
         executor(DummyCommand(lambda: None))
 
     assert states == [True]
@@ -156,7 +157,7 @@ def test_cli_session_restores_traceback_after_exit(monkeypatch: pytest.MonkeyPat
     monkeypatch.setattr(runner_mod, "run_cli", fake_run_cli)
 
     with lib_cli_exit_tools.cli_session(overrides={"traceback": True}) as execute:
-        executor = cast(Callable[..., int], execute)
+        executor = cast("Callable[..., int]", execute)
         executor(DummyCommand(lambda: None))
 
     assert lib_cli_exit_tools.config.traceback is False
@@ -193,7 +194,7 @@ def test_cli_session_returns_exit_code(monkeypatch: pytest.MonkeyPatch, reset_co
     monkeypatch.setattr(runner_mod, "run_cli", fake_run_cli)
 
     with lib_cli_exit_tools.cli_session(overrides={"traceback": True}) as execute:
-        executor = cast(Callable[..., int], execute)
+        executor = cast("Callable[..., int]", execute)
         exit_code = executor(DummyCommand(lambda: (_ for _ in ()).throw(RuntimeError("boom"))), argv=["info"])
 
     assert exit_code == 99
@@ -220,7 +221,7 @@ def test_cli_session_applies_force_color_with_traceback(monkeypatch: pytest.Monk
     monkeypatch.setattr(runner_mod, "run_cli", fake_run_cli)
 
     with lib_cli_exit_tools.cli_session(overrides={"traceback": True}) as execute:
-        executor = cast(Callable[..., int], execute)
+        executor = cast("Callable[..., int]", execute)
         executor(DummyCommand(lambda: None))
 
     assert states == [(True, True)]

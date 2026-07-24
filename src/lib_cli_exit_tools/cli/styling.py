@@ -16,10 +16,13 @@ System Integration:
 from __future__ import annotations
 
 from contextlib import contextmanager
-from typing import Any, Generator, TypedDict
+from typing import TYPE_CHECKING, Any, TypedDict
 
 import rich_click as click
 from rich_click import rich_click as rich_config
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 
 class RichClickSnapshot(TypedDict):

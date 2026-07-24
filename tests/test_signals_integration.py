@@ -14,11 +14,12 @@ import subprocess
 import sys
 import textwrap
 import time
-from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import pytest
 
+if TYPE_CHECKING:
+    from pathlib import Path
 
 # =============================================================================
 # Test Harness
@@ -164,7 +165,7 @@ def test_ctrl_break_returns_exit_code_149(tmp_path: Path) -> None:
     )
 
     _wait_for_ready_marker(proc)
-    ctrl_break = cast(int, getattr(signal, "CTRL_BREAK_EVENT"))
+    ctrl_break = cast("int", getattr(signal, "CTRL_BREAK_EVENT"))  # noqa: B009 - typeshed only declares CTRL_BREAK_EVENT on win32
     proc.send_signal(ctrl_break)
     _, _, returncode = _communicate(proc)
 
@@ -188,7 +189,7 @@ def test_ctrl_break_displays_sigbreak_message(tmp_path: Path) -> None:
     )
 
     _wait_for_ready_marker(proc)
-    ctrl_break = cast(int, getattr(signal, "CTRL_BREAK_EVENT"))
+    ctrl_break = cast("int", getattr(signal, "CTRL_BREAK_EVENT"))  # noqa: B009 - typeshed only declares CTRL_BREAK_EVENT on win32
     proc.send_signal(ctrl_break)
     _, stderr, _ = _communicate(proc)
 
@@ -212,7 +213,7 @@ def test_ctrl_break_outputs_ready_marker(tmp_path: Path) -> None:
     )
 
     ready_line = _wait_for_ready_marker(proc)
-    ctrl_break = cast(int, getattr(signal, "CTRL_BREAK_EVENT"))
+    ctrl_break = cast("int", getattr(signal, "CTRL_BREAK_EVENT"))  # noqa: B009 - typeshed only declares CTRL_BREAK_EVENT on win32
     proc.send_signal(ctrl_break)
     stdout, _, _ = _communicate(proc)
 
