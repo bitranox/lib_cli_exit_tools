@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [2.3.4] 2026-07-29 15:20:59
+
+### Fixed
+- `run_cli()` now returns the exit code a command chose with `ctx.exit(...)` instead of always reporting `0` on the non-exception path. Click is invoked with `standalone_mode=False`, which makes it *return* that code rather than raising it, and `_run_command_with_handler` discarded the value before returning a hardcoded `0`. Only the exception path could therefore produce a non-zero status, so a command that completed normally while reporting a negative *answer* - a host that did not respond, a search that found nothing, anything distinguishing "ran fine, result is no" from "failed" - silently exited `0`. `ClickCommand.main` is annotated `-> object` to match what Click actually returns. A command that simply completes still yields `0`, since Click returns `None` there.
+
+  No released behaviour changes for existing users: a sweep of every project in this tree found no other consumer calling `ctx.exit()` with a non-zero code, no test pinned the previous behaviour, and the documented `run_cli` contract in the README already described executing the command with `standalone_mode=False` without mentioning that its result was dropped.
+
 ## [2.3.3] 2026-07-24 16:09:16
 
 ### Fixed

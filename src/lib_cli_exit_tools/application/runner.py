@@ -60,7 +60,9 @@ class ClickCommand(Protocol):
         complete_var: str | None = ...,
         standalone_mode: bool = ...,  # noqa: FBT001 - mirrors Click's actual positional main() signature
         **_: object,
-    ) -> None: ...
+    ) -> object:
+        """Return Click's own result: ctx.exit()'s code, or None on success."""
+        ...
 
 
 __all__ = [
@@ -681,10 +683,15 @@ def _run_command_with_handler(
 ) -> int:
     """Invoke the Click command and delegate failures to ``handler``."""
     try:
-        _invoke_command(cli, argv, prog_name)
+        outcome = _invoke_command(cli, argv, prog_name)
     except BaseException as exc:  # single funnel for exit codes; handler translates every exception type
         return handler(exc)
-    return 0
+    # Click is invoked with standalone_mode=False, which makes it *return*
+    # ctx.exit()'s code rather than raising it. That is how a command reports a
+    # negative answer - nothing found, host did not respond - as distinct from
+    # an error. Discarding this value would collapse every such outcome to
+    # success; None is Click's plain-success result and stays 0.
+    return outcome if isinstance(outcome, int) else 0
 
 
 def _finalise_cli_run(restorer: Callable[[], None] | None) -> None:
@@ -693,9 +700,15 @@ def _finalise_cli_run(restorer: Callable[[], None] | None) -> None:
     flush_streams()
 
 
-def _invoke_command(cli: ClickCommand, argv: Sequence[str] | None, prog_name: str | None) -> None:
-    """Invoke the Click command with ``standalone_mode`` disabled."""
-    cli.main(args=_normalised_args(argv), standalone_mode=False, prog_name=prog_name)
+def _invoke_command(cli: ClickCommand, argv: Sequence[str] | None, prog_name: str | None) -> object:
+    """Invoke the Click command with ``standalone_mode`` disabled.
+
+    Returns:
+        Whatever Click returns: the code passed to ``ctx.exit()``, or ``None``
+        when the command simply completed.
+    """
+
+    return cli.main(args=_normalised_args(argv), standalone_mode=False, prog_name=prog_name)
 
 
 def _normalised_args(argv: Sequence[str] | None) -> Sequence[str] | None:

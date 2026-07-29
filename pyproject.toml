@@ -1,6 +1,6 @@
 [project]
 name = "lib_cli_exit_tools"
-version = "2.3.3"
+version = "2.3.4"
 description = "CLI exit handling helpers: clean signals, exit codes, and error printing"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -51,7 +51,7 @@ dev = [
   # Transitive CVE pins
   "click>=8.4.2",                # CVE-2026-7246
   "coverage[toml]>=7.15.2",
-  "hypothesis>=6.161.2",
+  "hypothesis>=6.163.0",
   "import-linter>=2.13",
   "bandit>=1.9.4",
   "pip-audit>=2.10.1",
@@ -62,7 +62,7 @@ dev = [
   "ruff>=0.16.0",
   "textual>=8.2.8",
   "rtoml>=0.13.0",
-  "twine>=6.2.0"
+  "twine>=7.0.0"
 ]
 
 [project.scripts]

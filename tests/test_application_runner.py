@@ -476,3 +476,96 @@ def test_run_cli_skips_signal_installation_when_disabled(monkeypatch: pytest.Mon
     runner.run_cli(DummyCommand(lambda: None), install_signals=False)
 
     assert called == []
+
+
+# =============================================================================
+# Exit codes a command chose deliberately
+# =============================================================================
+
+
+def _no_signal_handlers(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep these tests from touching process-wide signal state."""
+
+    def install(_specs: Sequence[SignalSpec]) -> Callable[[], None]:
+        def restore() -> None:
+            return None
+
+        return restore
+
+    monkeypatch.setattr(runner, "install_signal_handlers", install)
+
+
+def _command_exiting_with(code: int) -> click.Command:
+    """Return a real Click command that deliberately exits with ``code``.
+
+    A real command rather than the stub above, because the stub cannot
+    reproduce Click's return-value behaviour and that is exactly what is
+    under test here.
+    """
+
+    @click.pass_context
+    def body(ctx: click.Context) -> None:
+        ctx.exit(code)
+
+    return click.command()(body)
+
+
+def _group_with_subcommand_exiting_with(code: int) -> click.Group:
+    """Return a group whose subcommand exits with ``code``."""
+
+    @click.group()
+    def app() -> None: ...
+
+    @click.pass_context
+    def body(ctx: click.Context) -> None:
+        ctx.exit(code)
+
+    app.add_command(click.command("check")(body))
+    return app
+
+
+@pytest.mark.os_agnostic
+def test_run_cli_propagates_a_deliberate_non_zero_exit(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A command that calls ctx.exit(1) must exit 1, not 0.
+
+    ``ctx.exit`` is how a Click command reports a negative *answer* - a host
+    that did not respond, a search that found nothing - as distinct from an
+    error. With ``standalone_mode=False`` Click returns that code rather than
+    raising it, so it only reaches the caller if the return value is passed on.
+    Dropping it collapses every such outcome into success.
+    """
+
+    _no_signal_handlers(monkeypatch)
+
+    assert runner.run_cli(_command_exiting_with(1), [], prog_name="t") == 1
+
+
+@pytest.mark.os_agnostic
+@pytest.mark.parametrize("code", [1, 2, 3, 42])
+def test_run_cli_propagates_every_deliberate_exit_code(monkeypatch: pytest.MonkeyPatch, code: int) -> None:
+    """Whatever code the command chose is the code the caller receives."""
+
+    _no_signal_handlers(monkeypatch)
+
+    assert runner.run_cli(_command_exiting_with(code), [], prog_name="t") == code
+
+
+@pytest.mark.os_agnostic
+def test_run_cli_still_returns_zero_for_a_command_that_just_returns(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Click returns None on a plain success, which must still mean zero."""
+
+    _no_signal_handlers(monkeypatch)
+
+    def body() -> None:
+        click.echo("done")
+
+    assert runner.run_cli(click.command()(body), [], prog_name="t") == 0
+
+
+@pytest.mark.os_agnostic
+def test_run_cli_propagates_a_deliberate_exit_from_a_subcommand(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The same holds one level down, which is where real CLIs exit from."""
+
+    _no_signal_handlers(monkeypatch)
+
+    assert runner.run_cli(_group_with_subcommand_exiting_with(1), ["check"], prog_name="t") == 1
