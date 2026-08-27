@@ -49,9 +49,9 @@ dev = [
   # Re-enable once codecov-cli relaxes its click<8.3.0 pin.
   # "codecov-cli>=11.2.8",
   # Transitive CVE pins
-  "click>=8.4.2",                # CVE-2026-7246
-  "coverage[toml]>=7.15.2",
-  "hypothesis>=6.163.0",
+  "click>=8.5.0",                # CVE-2026-7246
+  "coverage[toml]>=7.15.4",
+  "hypothesis>=6.165.10",
   "import-linter>=2.13",
   "bandit>=1.9.4",
   "pip-audit>=2.10.1",
@@ -59,7 +59,7 @@ dev = [
   "pytest>=9.1.1",
   "pytest-asyncio>=1.4.0",
   "pytest-cov>=7.1.0",
-  "ruff>=0.16.0",
+  "ruff>=0.16.5",
   "textual>=8.2.8",
   "rtoml>=0.13.0",
   "twine>=7.0.0"
@@ -72,7 +72,7 @@ cli-exit-tools = "lib_cli_exit_tools.cli:main"
 lib-cli-exit-tools = "lib_cli_exit_tools.cli:main"
 
 [build-system]
-requires = ["hatchling>=1.31.0"]
+requires = ["hatchling>=1.32.0"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]

@@ -10,10 +10,10 @@ Each test verifies exactly one CLI behavior:
 
 from __future__ import annotations
 
+import sys
 from typing import TYPE_CHECKING, Any
 
 import pytest
-import rich_click as click
 from rich_click import rich_click as rich_config
 
 import lib_cli_exit_tools
@@ -260,10 +260,8 @@ def test_ascii_streams_disable_force_terminal(monkeypatch: pytest.MonkeyPatch) -
 
     original = _snapshot_rich_click_options()
 
-    def _get_dummy_stream(name: str) -> DummyStream:
-        return DummyStream()
-
-    monkeypatch.setattr(click, "get_text_stream", _get_dummy_stream)
+    monkeypatch.setattr(sys, "stdout", DummyStream())
+    monkeypatch.setattr(sys, "stderr", DummyStream())
 
     with _temporary_rich_click_configuration():
         assert rich_config.FORCE_TERMINAL is False
@@ -282,10 +280,8 @@ def test_ascii_streams_disable_color_system(monkeypatch: pytest.MonkeyPatch) -> 
 
     original = _snapshot_rich_click_options()
 
-    def _get_dummy_stream(name: str) -> DummyStream:
-        return DummyStream()
-
-    monkeypatch.setattr(click, "get_text_stream", _get_dummy_stream)
+    monkeypatch.setattr(sys, "stdout", DummyStream())
+    monkeypatch.setattr(sys, "stderr", DummyStream())
 
     with _temporary_rich_click_configuration():
         assert rich_config.COLOR_SYSTEM is None
@@ -304,10 +300,8 @@ def test_utf8_tty_streams_preserve_color_system(monkeypatch: pytest.MonkeyPatch)
 
     original = _snapshot_rich_click_options()
 
-    def _get_fancy_stream(name: str) -> FancyStream:
-        return FancyStream()
-
-    monkeypatch.setattr(click, "get_text_stream", _get_fancy_stream)
+    monkeypatch.setattr(sys, "stdout", FancyStream())
+    monkeypatch.setattr(sys, "stderr", FancyStream())
 
     with _temporary_rich_click_configuration():
         assert original.get("COLOR_SYSTEM") == rich_config.COLOR_SYSTEM

@@ -15,10 +15,10 @@ System Integration:
 
 from __future__ import annotations
 
+import sys
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, TypedDict
 
-import rich_click as click
 from rich_click import rich_click as rich_config
 
 if TYPE_CHECKING:
@@ -104,9 +104,10 @@ def _temporary_rich_click_configuration() -> Generator[None]:  # pyright: ignore
     """Apply plain-output safeguards and restore rich-click globals afterwards."""
 
     snapshot = _snapshot_rich_click_options()
-    stdout_stream = click.get_text_stream("stdout")
-    stderr_stream = click.get_text_stream("stderr")
-    if _needs_plain_output(stdout_stream) and _needs_plain_output(stderr_stream):
+    # sys.stdout/sys.stderr, not click's resolution of them: rich renders through
+    # its own Console on these streams, and click 8.5.0 deprecated get_text_stream
+    # (removed in 9.0) with no supported replacement.
+    if _needs_plain_output(sys.stdout) and _needs_plain_output(sys.stderr):
         _prefer_ascii_layout()
     try:
         yield
