@@ -417,6 +417,90 @@ def test_session_config_manager_with_no_overrides_returns_null_context() -> None
         pass  # Should not raise
 
 
+class _ExitThree(click.ClickException):
+    """A Click exception that chooses its own exit code."""
+
+    exit_code = 3
+
+
+class _HangupError(Exception):
+    """A caller-defined signal exception for signal-spec tests."""
+
+
+@click.command("ok")
+def _ok_command() -> None:
+    """Succeed."""
+
+
+@click.command("chosen")
+def _chosen_command() -> None:
+    """Fail with a Click exception that sets exit_code 3."""
+    raise _ExitThree("chosen failure")
+
+
+@click.command("boom")
+def _boom_command() -> None:
+    """Fail with an ordinary exception."""
+    raise RuntimeError("boom")
+
+
+@click.command("hangup")
+def _hangup_command() -> None:
+    """Raise the caller-defined signal exception."""
+    raise _HangupError
+
+
+def _session_probe_cli() -> click.Group:
+    """Build a real Click group whose commands cover every exit-code path."""
+    return click.Group("probe", commands=[_ok_command, _chosen_command, _boom_command, _hangup_command])
+
+
+@pytest.mark.os_agnostic
+def test_a_usage_error_under_cli_session_exits_two_with_clicks_usage_message(reset_config: None, capsys: pytest.CaptureFixture[str]) -> None:
+    with runner.cli_session() as execute:
+        code = execute(_session_probe_cli(), argv=["--bad-flag"], install_signals=False)
+
+    err = capsys.readouterr().err
+    assert code == 2
+    assert "Usage:" in err
+    assert "No such option" in err
+
+
+@pytest.mark.os_agnostic
+@pytest.mark.parametrize(
+    "argv",
+    [["ok"], ["--bad-flag"], ["no-such-command"], ["ok", "--bad-flag"], ["chosen"], ["boom"]],
+    ids=["success", "bad-flag", "unknown-command", "bad-subcommand-flag", "click-chosen-code", "plain-exception"],
+)
+def test_cli_session_exits_with_the_code_run_cli_gives(reset_config: None, argv: list[str]) -> None:
+    expected = runner.run_cli(_session_probe_cli(), argv=argv, install_signals=False)
+
+    with runner.cli_session() as execute:
+        code = execute(_session_probe_cli(), argv=argv, install_signals=False)
+
+    assert code == expected
+
+
+@pytest.mark.os_agnostic
+def test_cli_session_honours_the_signal_specs_its_caller_passes(reset_config: None, capsys: pytest.CaptureFixture[str]) -> None:
+    specs = [SignalSpec(signum=0, exception=_HangupError, message="hung up", exit_code=129)]
+
+    with runner.cli_session() as execute:
+        code = execute(_session_probe_cli(), argv=["hangup"], signal_specs=specs, install_signals=False)
+
+    assert code == 129
+    assert "hung up" in capsys.readouterr().err
+
+
+@pytest.mark.os_agnostic
+def test_cli_session_still_truncates_an_unhandled_exception_at_its_summary_limit(reset_config: None, capsys: pytest.CaptureFixture[str]) -> None:
+    with runner.cli_session(summary_limit=5) as execute:
+        code = execute(_session_probe_cli(), argv=["boom"], install_signals=False)
+
+    assert code != 0
+    assert "[TRUNCATED at 5 characters]" in capsys.readouterr().err
+
+
 # =============================================================================
 # Run CLI
 # =============================================================================

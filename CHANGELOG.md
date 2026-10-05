@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [2.4.0] 2026-10-05 20:48:53
+
+### Fixed
+- `cli_session()` now resolves exit codes the way `run_cli()`'s default handler does. Its handler went straight to a traceback summary plus `get_system_exit_code()`, skipping the resolver chain, so under a session a Click usage error (bad flag, unknown command) exited `1` and printed `NoSuchOption: ...` instead of exiting `2` with Click's usage message, a `ClickException` with its own `exit_code` lost it, and the `signal_specs` passed to the session runner were ignored. The session's `summary_limit`/`verbose_limit` still apply to an exception nothing else claims. CLIs built on `cli_session` now report a usage error as `2`, like Click and like `run_cli`.
+
+### Added
+- `SessionRunner`, a `Protocol` typing the callable `cli_session()` yields. The previous annotation was a union whose first member took only the command, so a type checker rejected `run(cmd, argv=[...])` and callers had to `cast` the session.
+
+### Changed
+- `README.md` is ASCII-only, and its `cli_session` section says how the session's handler resolves exit codes.
+- Raised the dev tool floors.
+
 ## [2.3.4] 2026-07-29 15:20:59
 
 ### Fixed

@@ -67,12 +67,29 @@ class ClickCommand(Protocol):
 
 __all__ = [
     "SessionOverrides",
+    "SessionRunner",
     "cli_session",
     "flush_streams",
     "handle_cli_exception",
     "print_exception_message",
     "run_cli",
 ]
+
+
+class SessionRunner(Protocol):
+    """The callable :func:`cli_session` yields: :func:`run_cli` with the session's handler."""
+
+    def __call__(  # pragma: no cover - structural typing
+        self,
+        command: ClickCommand,
+        *,
+        argv: Sequence[str] | None = None,
+        prog_name: str | None = None,
+        signal_specs: Sequence[SignalSpec] | None = None,
+        install_signals: bool = True,
+        exception_handler: Callable[[BaseException], int] | None = None,
+        signal_installer: Callable[[Sequence[SignalSpec] | None], Callable[[], None]] | None = None,
+    ) -> int: ...
 
 
 class _Echo(Protocol):
@@ -360,7 +377,7 @@ def handle_cli_exception(
 
     specs = _resolve_signal_specs(signal_specs)
     echo_fn = _choose_echo(echo)
-    return _resolve_exit_code(exc, specs, echo_fn)
+    return _resolve_exit_code(exc, specs, echo_fn, fallback=_render_and_translate)
 
 
 def _choose_echo(echo: _Echo | None) -> _Echo:
@@ -372,13 +389,20 @@ def _resolve_exit_code(
     exc: BaseException,
     specs: Sequence[SignalSpec],
     echo: _Echo,
+    *,
+    fallback: Callable[[BaseException], int],
 ) -> int:
-    """Walk the resolver chain until a numeric exit code emerges."""
+    """Walk the resolver chain; hand an exception none of them claims to ``fallback``.
+
+    Signals, broken pipes, Click exceptions and ``SystemExit`` carry their own
+    exit code and message, so only an otherwise unhandled exception reaches
+    ``fallback``, which renders it and maps it to a code.
+    """
     for resolver in _exception_resolvers(specs, echo):
         code = resolver(exc)
         if code is not None:
             return code
-    return _render_and_translate(exc)
+    return fallback(exc)
 
 
 def _exception_resolvers(
@@ -466,15 +490,7 @@ def cli_session(
     verbose_limit: int = 10_000,
     overrides: SessionOverrides | None = None,
     restore: bool = True,
-) -> Generator[
-    Callable[
-        [
-            ClickCommand,
-        ],
-        int,
-    ]
-    | Callable[..., int]
-]:
+) -> Generator[SessionRunner]:
     """Provide a managed execution context around :func:`run_cli`.
 
     Why
@@ -509,7 +525,7 @@ def cli_session(
 
     Yields
     ------
-    Callable
+    SessionRunner
         Function that accepts a Click command and forwards optional ``run_cli``
         keyword arguments, returning the resulting exit code.
     """
@@ -518,7 +534,6 @@ def cli_session(
     manager = _session_config_manager(applied, restore=restore)
 
     with manager:
-        handler = _session_exception_handler(summary_limit, verbose_limit)
 
         def _run(
             command: ClickCommand,
@@ -530,7 +545,11 @@ def cli_session(
             exception_handler: Callable[[BaseException], int] | None = None,
             signal_installer: Callable[[Sequence[SignalSpec] | None], Callable[[], None]] | None = None,
         ) -> int:
-            chosen_handler = exception_handler or handler
+            chosen_handler = exception_handler or _session_exception_handler(
+                summary_limit=summary_limit,
+                verbose_limit=verbose_limit,
+                signal_specs=signal_specs,
+            )
             return run_cli(
                 command,
                 argv=argv,
@@ -587,14 +606,29 @@ def _apply_overrides_without_restore(applied: SessionOverrides) -> Generator[Non
     yield
 
 
-def _session_exception_handler(summary_limit: int, verbose_limit: int) -> Callable[[BaseException], int]:
-    """Build the exception handler used inside :func:`cli_session`."""
+def _session_exception_handler(
+    *,
+    summary_limit: int,
+    verbose_limit: int,
+    signal_specs: Sequence[SignalSpec] | None,
+) -> Callable[[BaseException], int]:
+    """Build the exception handler used inside :func:`cli_session`.
 
-    def _handler(exc: BaseException) -> int:
+    It runs the same resolver chain as :func:`handle_cli_exception`, so a Click
+    usage error exits with Click's own code and message under a session too;
+    the session's character budgets apply only to the exception nothing else
+    claims.
+    """
+    specs = _resolve_signal_specs(signal_specs)
+
+    def _render_with_session_limits(exc: BaseException) -> int:
         active = bool(config.traceback)
         limit = verbose_limit if active else summary_limit
         print_exception_message(trace_back=active, length_limit=limit)
         return get_system_exit_code(exc)
+
+    def _handler(exc: BaseException) -> int:
+        return _resolve_exit_code(exc, specs, _default_echo, fallback=_render_with_session_limits)
 
     return _handler
 
