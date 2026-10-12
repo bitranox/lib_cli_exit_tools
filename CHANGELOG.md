@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+- Python 3.15 is a supported version: declared in the classifiers, so CI and `make test-all` run it.
+- `uv.lock` is committed, and `[tool.uv] exclude-newer` sets a cooldown that keeps releases younger
+  than it out of the lock. CI installs exactly the locked tree on push and pull request; the nightly
+  scheduled run still resolves afresh to catch upstream breakage early.
+
+### Changed
+- The install section explains why installing with uv protects against supply-chain attacks and why
+  a plain `pip install` from PyPI does not.
+- `rtoml` floor raised to 0.14.0 (dev extra), the first release with Python 3.15 wheels.
+
 ## [2.4.0] 2026-10-05 20:48:53
 
 ### Fixed
