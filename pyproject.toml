@@ -245,5 +245,4 @@ ignore-vulns = [
 ]
 
 [tool.uv]
-exclude-newer = "1 day"
-exclude-newer-package = {rtoml = "2026-10-12T00:17:16Z"}
+exclude-newer = "7 days"
