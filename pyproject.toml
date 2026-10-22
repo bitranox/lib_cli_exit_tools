@@ -61,7 +61,8 @@ dev = [
   "ruff>=0.17.0",
   "textual>=8.2.8",
   "rtoml>=0.14.0",
-  "twine>=7.0.0"
+  "twine>=7.0.0",
+  "certifi>=2026.10.19",         # PYSEC-2026-4320
 ]
 
 [project.scripts]
@@ -246,3 +247,4 @@ ignore-vulns = [
 
 [tool.uv]
 exclude-newer = "7 days"
+exclude-newer-package = {certifi = "2026-10-20T02:24:17Z"}
