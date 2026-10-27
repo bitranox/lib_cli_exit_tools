@@ -58,6 +58,7 @@ dev = [
   "pytest>=9.1.1",
   "pytest-asyncio>=1.4.0",
   "pytest-cov>=7.1.0",
+  "pytest-xdist>=3.8.0",
   "ruff>=0.17.1",
   "textual>=8.2.8",
   "rtoml>=0.14.0",
@@ -250,4 +251,3 @@ ignore-vulns = [
 
 [tool.uv]
 exclude-newer = "7 days"
-exclude-newer-package = {certifi = "2026-10-20T02:24:17Z"}
