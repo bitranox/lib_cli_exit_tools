@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
-## [2.4.1] 2026-10-12 22:22:57
+## [2.4.1] - 2026-10-12
 
 ### Added
 - Python 3.15 is a supported version: declared in the classifiers, so CI and `make test-all` run it.
@@ -17,7 +17,7 @@ All notable changes to this project are documented here. The format follows [Kee
   a plain `pip install` from PyPI does not.
 - `rtoml` floor raised to 0.14.0 (dev extra), the first release with Python 3.15 wheels.
 
-## [2.4.0] 2026-10-05 20:48:53
+## [2.4.0] - 2026-10-05
 
 ### Fixed
 - `cli_session()` now resolves exit codes the way `run_cli()`'s default handler does. Its handler went straight to a traceback summary plus `get_system_exit_code()`, skipping the resolver chain, so under a session a Click usage error (bad flag, unknown command) exited `1` and printed `NoSuchOption: ...` instead of exiting `2` with Click's usage message, a `ClickException` with its own `exit_code` lost it, and the `signal_specs` passed to the session runner were ignored. The session's `summary_limit`/`verbose_limit` still apply to an exception nothing else claims. CLIs built on `cli_session` now report a usage error as `2`, like Click and like `run_cli`.
@@ -29,14 +29,14 @@ All notable changes to this project are documented here. The format follows [Kee
 - `README.md` is ASCII-only, and its `cli_session` section says how the session's handler resolves exit codes.
 - Raised the dev tool floors.
 
-## [2.3.4] 2026-07-29 15:20:59
+## [2.3.4] - 2026-07-29
 
 ### Fixed
 - `run_cli()` now returns the exit code a command chose with `ctx.exit(...)` instead of always reporting `0` on the non-exception path. Click is invoked with `standalone_mode=False`, which makes it *return* that code rather than raising it, and `_run_command_with_handler` discarded the value before returning a hardcoded `0`. Only the exception path could therefore produce a non-zero status, so a command that completed normally while reporting a negative *answer* - a host that did not respond, a search that found nothing, anything distinguishing "ran fine, result is no" from "failed" - silently exited `0`. `ClickCommand.main` is annotated `-> object` to match what Click actually returns. A command that simply completes still yields `0`, since Click returns `None` there.
 
   No released behaviour changes for existing users: a sweep of every project in this tree found no other consumer calling `ctx.exit()` with a non-zero code, no test pinned the previous behaviour, and the documented `run_cli` contract in the README already described executing the command with `standalone_mode=False` without mentioning that its result was dropped.
 
-## [2.3.3] 2026-07-24 16:09:16
+## [2.3.3] - 2026-07-24
 
 ### Fixed
 - `print_info()` now writes via `sys.stdout.write()` instead of `print()`, and `print_exception_message()`'s `trace_back` / `length_limit` / `stream` parameters are keyword-only, along with several private `application/runner.py` helpers (`_resolve_traceback_choice`, `_render_exception_view`, `_session_config_manager`, `_install_signal_handlers_when_requested`) - closing the ruff PLR0917/FBT001 boolean-positional-argument findings that a newer ruff started reporting. All call sites (in this repo and downstream) already passed these by keyword, so this is not a breaking change.
@@ -47,7 +47,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Added an explicit, curated `[tool.ruff.lint].select` (the fleet-standard rule set) to `pyproject.toml` instead of relying on ruff's default rule set, which had grown to roughly 900 rules on the installed ruff release and was about to make CI red on unrelated, previously-unenforced rule families. Added matching `per-file-ignores` for tests, the CLI layer, `notebooks/Quickstart.ipynb`, and `application/runner.py`'s intentionally-wide dependency-injection seams (`PLR0913`).
 - Documented the three narrow places where suppressing a lint finding is correct rather than fixing it: the `SigIntInterrupt`/`SigTermInterrupt`/`SigBreakInterrupt` exception names stay as-is (`# noqa: N818`) because renaming them would break every downstream `except Sig...Interrupt`; `getattr(signal, "SIGBREAK"/"CTRL_BREAK_EVENT")` and `getattr(exc, "winerror")` stay as `getattr()` (`# noqa: B009`) because typeshed only declares those attributes on Windows/`OSError`, so direct attribute access fails pyright strict on other platforms/types; and the `echo=lambda ...` test double stays a lambda (`# noqa: PLW0108`) because `messages.append` alone cannot accept the `err` keyword the echo protocol requires.
 
-## [2.3.2] 2026-06-14
+## [2.3.2] - 2026-06-14
 
 ### Changed
 - Added a `cli/typed_click.py` facade that wraps rich-click's `option` / `version_option` decorators behind explicit, fully-known signatures. This keeps the CLI layer clean under pyright 1.1.410 strict mode (which reports `reportUnknownMemberType` for rich-click's re-exported click decorators) without disabling the rule - the single `# pyright: ignore` is isolated to the facade boundary.
