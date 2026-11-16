@@ -4,8 +4,10 @@
 rarely arrives as one. click's own ``main()`` turns EPIPE into ``SystemExit(1)`` whatever
 ``standalone_mode`` says, and output smaller than the stream buffer reaches the pipe only in the
 final flush, which swallowed the error and left the interpreter's exit flush to fail with 120 and an
-"Exception ignored" line. Measured before the fix: 1 for ``click.echo``, small or large; 120 for a
-small ``sys.stdout.write``.
+"Exception ignored" line. Measured before the fix on Linux: 1 for ``click.echo``, small or large;
+120 for a small ``sys.stdout.write``. On Windows, where the C runtime reports a closed pipe as a bare
+``EINVAL``, it was 120 or 22 with ``OSError: [Errno 22]`` lines on stderr, and a command that exited 3
+exited 120.
 
 Each child runs ``run_cli`` with its stdout reader closed before it writes a byte.
 """
@@ -77,7 +79,6 @@ def _run_with_reader_gone(tmp_path: Path, *argv: str) -> tuple[int, str]:
     return process.returncode, stderr.decode("utf-8", "replace")
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="a closed pipe reads as EINVAL on Windows; see the predicate tests")
 @pytest.mark.parametrize(
     "argv",
     [
@@ -92,7 +93,6 @@ def test_a_gone_reader_exits_with_the_broken_pipe_code_and_says_nothing(tmp_path
     assert _run_with_reader_gone(tmp_path, *argv) == (141, "")
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="a closed pipe reads as EINVAL on Windows; see the predicate tests")
 def test_a_command_s_own_failure_keeps_its_code_when_the_reader_is_gone(tmp_path: Path) -> None:
     assert _run_with_reader_gone(tmp_path, "refuse") == (3, "")
 

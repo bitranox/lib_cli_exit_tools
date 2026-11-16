@@ -21,7 +21,9 @@ All notable changes to this project are documented here. The format follows [Kee
   BrokenPipeError" line for output smaller than the stream buffer, whose only write was the final
   flush, which swallowed the error. Now a `SystemExit` raised while handling such an error maps to
   141, and the final flush points a stream that fails at the null device and turns a successful run
-  into 141. A command's own failure keeps its exit code. Plain click (not rich_click) raises that
+  into 141. A command's own failure keeps its exit code. On Windows, where a closed pipe reports
+  `EINVAL`, a run exited 120 or 22 with `OSError: [Errno 22]` lines, and a command's own exit code
+  was lost to 120; it now behaves as on Linux. Plain click (not rich_click) raises that
   `SystemExit` outside the handler, with no error attached, so a `click.echo` in a plain click
   command still exits 1 there.
 
