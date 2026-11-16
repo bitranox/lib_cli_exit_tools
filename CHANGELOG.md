@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-11-16
+
 ### Added
 - `is_gone_reader_error(exc, *, windows=...)` tells a failed write or flush whose reader went away
   (`EPIPE` everywhere, a bare `EINVAL` on Windows, where the C runtime reports a closed pipe that way)
