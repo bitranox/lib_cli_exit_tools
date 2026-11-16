@@ -18,6 +18,8 @@ System Integration:
 
 from __future__ import annotations
 
+import errno
+import os
 import sys
 from collections.abc import Callable, Generator, Iterable, Sequence
 from contextlib import AbstractContextManager, contextmanager, nullcontext, suppress
@@ -71,9 +73,92 @@ __all__ = [
     "cli_session",
     "flush_streams",
     "handle_cli_exception",
+    "is_gone_reader_error",
     "print_exception_message",
     "run_cli",
 ]
+
+
+def is_gone_reader_error(exc: OSError, *, windows: bool = os.name == "nt") -> bool:
+    """Return whether a failed write or flush to a standard stream means its reader went away.
+
+    The Windows C runtime reports a pipe with no reader as a bare ``EINVAL``, on a write as much as on
+    a flush. Only a bare one counts: ``EINVAL`` from a bad file name carries the name, and from a
+    socket a Windows error code, and those are real failures.
+
+    Parameters:
+        exc: The error the stream raised.
+        windows: Whether the Windows C runtime's reporting applies.
+    Returns:
+        ``True`` for ``EPIPE`` everywhere and for a bare ``EINVAL`` on Windows.
+
+    Examples:
+        >>> is_gone_reader_error(BrokenPipeError(errno.EPIPE, "Broken pipe"), windows=False)
+        True
+        >>> is_gone_reader_error(OSError(errno.EINVAL, "Invalid argument"), windows=True)
+        True
+        >>> is_gone_reader_error(OSError(errno.EINVAL, "Invalid argument", "bad?name"), windows=True)
+        False
+    """
+    if exc.errno == errno.EPIPE:
+        return True
+    bare = exc.filename is None and getattr(exc, "winerror", None) is None
+    return windows and exc.errno == errno.EINVAL and bare
+
+
+def _reader_left(exc: BaseException) -> bool:
+    """Return whether *exc* ended the run because the reader of its output went away.
+
+    click's ``main()`` (rich_click's too) turns ``EPIPE`` into ``SystemExit(1)`` raised while it
+    handles the error, so for a ``SystemExit`` the error it was raised during decides.
+    """
+    cause = exc.__context__ if isinstance(exc, SystemExit) else exc
+    return isinstance(cause, OSError) and is_gone_reader_error(cause)
+
+
+def _discard_stream(stream: object) -> None:
+    """Point *stream*'s descriptor at the null device, so the interpreter's exit flush cannot fail.
+
+    The bytes a gone reader did not take stay in the buffer; without this the exit flush fails after
+    every handler has run, prints "Exception ignored" and leaves exit code 120.
+    """
+    fileno = getattr(stream, "fileno", None)
+    if not callable(fileno):
+        return
+    try:
+        descriptor = cast("int", fileno())
+        null = os.open(os.devnull, os.O_WRONLY)
+    except (OSError, ValueError):
+        # A stream with no descriptor (a captured one) has no exit flush to protect.
+        return
+    try:
+        os.dup2(null, descriptor)
+    except OSError:
+        return
+    finally:
+        os.close(null)
+
+
+def _flush_at_exit() -> bool:
+    """Flush stdout and stderr once more and return whether a reader had gone.
+
+    Output smaller than a stream's buffer reaches the pipe only here, after the command returned. A
+    stream that fails is discarded, so the interpreter's own flush has nothing left to fail on; any
+    other failure stays best-effort, as before.
+    """
+    gone = False
+    for stream in (sys.stdout, sys.stderr):
+        if stream is None:
+            continue
+        try:
+            stream.flush()
+        except OSError as exc:
+            _discard_stream(stream)
+            gone = gone or is_gone_reader_error(exc)
+        except ValueError:
+            # A closed stream has nothing left to flush.
+            continue
+    return gone
 
 
 class SessionRunner(Protocol):
@@ -443,8 +528,8 @@ def _signal_exit_code(exc: BaseException, specs: Sequence[SignalSpec], echo: _Ec
 
 
 def _broken_pipe_exit(exc: BaseException) -> int | None:
-    """Return the configured broken-pipe exit code when applicable."""
-    if isinstance(exc, BrokenPipeError):
+    """Return the configured broken-pipe exit code when the run ended because its reader went away."""
+    if _reader_left(exc):
         return int(config.broken_pipe_exit_code)
     return None
 
@@ -671,10 +756,15 @@ def run_cli(
     handler = _choose_exception_handler(exception_handler, specs)
     restorer = _install_signal_handlers_when_requested(install_signals=install_signals, signal_installer=signal_installer, specs=specs)
 
+    code = 1
     try:
-        return _run_command_with_handler(cli, argv, prog_name, handler)
+        code = _run_command_with_handler(cli, argv, prog_name, handler)
     finally:
-        _finalise_cli_run(restorer)
+        _restore_handlers_if_needed(restorer)
+        reader_gone = _flush_at_exit()
+    # A gone reader turns only a success into the broken-pipe code: a command's own failure keeps its
+    # code, so a refusal never reads as "the reader left" to a pipeline that checks the status.
+    return int(config.broken_pipe_exit_code) if reader_gone and code == 0 else code
 
 
 def _choose_exception_handler(
@@ -726,12 +816,6 @@ def _run_command_with_handler(
     # an error. Discarding this value would collapse every such outcome to
     # success; None is Click's plain-success result and stays 0.
     return outcome if isinstance(outcome, int) else 0
-
-
-def _finalise_cli_run(restorer: Callable[[], None] | None) -> None:
-    """Restore signal handlers when needed and flush IO buffers."""
-    _restore_handlers_if_needed(restorer)
-    flush_streams()
 
 
 def _invoke_command(cli: ClickCommand, argv: Sequence[str] | None, prog_name: str | None) -> object:

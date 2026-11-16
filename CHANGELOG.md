@@ -4,12 +4,26 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+- `is_gone_reader_error(exc, *, windows=...)` tells a failed write or flush whose reader went away
+  (`EPIPE` everywhere, a bare `EINVAL` on Windows, where the C runtime reports a closed pipe that way)
+  from a real failure.
+
 ### Fixed
 
 - `notebooks/Quickstart.ipynb` installs the checkout it runs in, so CI's "Execute notebooks" job
   tests the commit under test. It used to install `git+https://github.com/...` every time, which is
   the pushed default branch, so a pull request's notebook run tested the code already there.
   Outside a checkout (a downloaded notebook) it still installs from GitHub.
+- `run_cli` returns `config.broken_pipe_exit_code` (141) when the reader of stdout went away, and
+  prints nothing. Before, `| head`-style pipelines got 1 for anything printed with `click.echo` (click's
+  own `main()` turns `EPIPE` into `SystemExit(1)`), and 120 with an "Exception ignored ...
+  BrokenPipeError" line for output smaller than the stream buffer, whose only write was the final
+  flush, which swallowed the error. Now a `SystemExit` raised while handling such an error maps to
+  141, and the final flush points a stream that fails at the null device and turns a successful run
+  into 141. A command's own failure keeps its exit code. Plain click (not rich_click) raises that
+  `SystemExit` outside the handler, with no error attached, so a `click.echo` in a plain click
+  command still exits 1 there.
 
 ## [2.4.1] - 2026-10-12
 
